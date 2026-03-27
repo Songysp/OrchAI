@@ -19,6 +19,13 @@ class ChannelBinding(PlatformBaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
+class AgentMapping(PlatformBaseModel):
+    role: str
+    provider: str
+    model: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
 class Project(PlatformBaseModel):
     project_id: str
     repo_url: str
@@ -29,6 +36,10 @@ class Project(PlatformBaseModel):
     name: str | None = None
     description: str | None = None
     channel_bindings: dict[str, ChannelBinding] = Field(default_factory=dict)
+    agent_mapping: dict[str, AgentMapping] = Field(default_factory=dict)
+    execution_backend: str | None = None
+    commands: dict[str, object] = Field(default_factory=dict)
+    rules: list[dict[str, object]] = Field(default_factory=list)
     metadata: dict[str, object] = Field(default_factory=dict)
 
     @model_validator(mode="before")
@@ -41,4 +52,5 @@ class Project(PlatformBaseModel):
         if isinstance(repo, dict):
             data.setdefault("repo_url", repo.get("url"))
             data.setdefault("default_branch", repo.get("default_branch", "main"))
+            data.pop("repo", None)
         return data

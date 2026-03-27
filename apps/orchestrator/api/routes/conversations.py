@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from apps.orchestrator.api.deps import get_orchestrator_service
-from packages.domain.services.orchestrator import OrchestratorService
+from apps.orchestrator.services.orchestrator_service import OrchestratorService
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 

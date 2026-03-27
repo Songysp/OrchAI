@@ -1,36 +1,52 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 
 from apps.orchestrator.api.deps import get_orchestrator_service
-from packages.domain.models import TaskStatus
-from packages.domain.services.orchestrator import CreateTaskInput, OrchestratorService
+from apps.orchestrator.api.models import CreateTaskRequest, TaskRunResponse, TaskStatusResponse
+from apps.orchestrator.services.orchestrator_service import OrchestratorService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-@router.get("")
-def list_tasks(
-    project_id: str | None = Query(default=None),
+@router.post("", response_model=TaskRunResponse)
+async def create_task(
+    payload: CreateTaskRequest,
     service: OrchestratorService = Depends(get_orchestrator_service),
-):
-    return service.list_tasks(project_id)
-
-
-@router.post("")
-def create_task(payload: CreateTaskInput, service: OrchestratorService = Depends(get_orchestrator_service)):
+) -> TaskRunResponse:
     if service.get_project(payload.project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    return service.create_task(payload)
+
+    created = service.create_task(project_id=payload.project_id, user_input=payload.user_input)
+    result = await service.run_task(created.task_id)
+
+    return TaskRunResponse(
+        task_id=result.task_id,
+        project_id=result.project_id,
+        title=created.title,
+        final_status=result.final_status.value,
+        final_stage=result.final_stage.value,
+        summary=result.representative_summary,
+        decision_id=result.decision_id,
+        approval_required=result.approval_required,
+        approval_id=result.approval_id,
+    )
 
 
-@router.post("/{task_id}/status/{status}")
-def update_task_status(
+@router.get("/{task_id}", response_model=TaskStatusResponse)
+def get_task_status(
     task_id: str,
-    status: TaskStatus,
     service: OrchestratorService = Depends(get_orchestrator_service),
-):
-    task = service.update_task_status(task_id, status)
-    if task is None:
+) -> TaskStatusResponse:
+    status = service.get_task_status(task_id)
+    if status is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task
+
+    return TaskStatusResponse(
+        task_id=status.task_id,
+        project_id=status.project_id,
+        status=status.status.value,
+        stage=status.stage.value,
+        updated_at=status.updated_at,
+        summary=status.summary,
+    )

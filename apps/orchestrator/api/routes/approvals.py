@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from apps.orchestrator.api.deps import get_orchestrator_service
-from packages.domain.services.orchestrator import CreateApprovalInput, OrchestratorService
+from apps.orchestrator.services.orchestrator_service import CreateApprovalInput, OrchestratorService
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 

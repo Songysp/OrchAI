@@ -6,19 +6,12 @@ from packages.agents.base import AgentAdapter
 from packages.agents.claude_adapter import ClaudeAdapter
 from packages.agents.codex_adapter import CodexAdapter
 from packages.agents.gemini_adapter import GeminiAdapter
-from packages.chat.base import ChatAdapter
-from packages.chat.discord_adapter import DiscordAdapter
-from packages.chat.slack_adapter import SlackAdapter
 from packages.config.loader import ConfigLoader
 from packages.config.models import LoadedConfig
-from packages.execution.base import ExecutionAdapter
-from packages.execution.cli import CliExecutionAdapter
-from packages.execution.github_actions import GitHubActionsExecutionAdapter
-from packages.rules.engine import SimpleRulesEngine
-from packages.storage.base import ApprovalStore, ConversationStore, DecisionStore, ProjectStore, TaskStore
-from packages.storage.file_store.stores import (
+from packages.rules import SimpleRulesEngine
+from packages.storage.base import ApprovalStore, DecisionStore, ProjectStore, TaskStore
+from packages.storage.file_store import (
     FileApprovalStore,
-    FileConversationStore,
     FileDecisionStore,
     FileProjectStore,
     FileTaskStore,
@@ -33,22 +26,13 @@ class PlatformRegistry:
 
         self.project_store: ProjectStore = FileProjectStore(data_path)
         self.task_store: TaskStore = FileTaskStore(data_path)
-        self.conversation_store: ConversationStore = FileConversationStore(data_path)
         self.decision_store: DecisionStore = FileDecisionStore(data_path)
         self.approval_store: ApprovalStore = FileApprovalStore(data_path)
 
-        self.chat_adapters: dict[str, ChatAdapter] = {
-            "slack": SlackAdapter(),
-            "discord": DiscordAdapter(),
-        }
         self.agent_adapters: dict[str, AgentAdapter] = {
             "claude": ClaudeAdapter(),
             "gemini": GeminiAdapter(),
             "codex": CodexAdapter(),
-        }
-        self.execution_adapters: dict[str, ExecutionAdapter] = {
-            "cli": CliExecutionAdapter(),
-            "github_actions": GitHubActionsExecutionAdapter(),
         }
         self.rules_engine = SimpleRulesEngine()
 

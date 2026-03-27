@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from apps.orchestrator.api.deps import get_orchestrator_service
+from apps.orchestrator.services.orchestrator_service import OrchestratorService
 from packages.domain.models import Decision
-from packages.domain.services.orchestrator import OrchestratorService
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 

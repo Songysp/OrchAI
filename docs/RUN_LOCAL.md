@@ -33,11 +33,18 @@ The API will be available at `http://localhost:8000`.
 - `GET /health`
 - `GET /api/projects`
 - `GET /api/projects/{project_id}`
-- `GET /api/tasks`
 - `POST /api/tasks`
-- `POST /api/tasks/{task_id}/status/{status}`
-- `GET /api/approvals`
-- `POST /api/approvals`
-- `GET /api/decisions`
-- `POST /api/decisions`
-- `GET /api/conversations`
+- `GET /api/tasks/{task_id}`
+
+## Task flow
+
+`POST /api/tasks` both creates the task and runs the MVP orchestration flow.
+
+Request body:
+
+```json
+{
+  "project_id": "sample-slack-project",
+  "user_input": "Build the first representative AI workflow"
+}
+```

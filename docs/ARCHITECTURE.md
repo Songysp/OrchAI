@@ -99,6 +99,24 @@ Transport adapter layer.
 
 Core orchestration should depend on these abstractions, not on Slack or Discord SDK details directly.
 
+#### Logical channels vs physical channels
+
+The platform should talk in terms of logical channels:
+
+- `ai-council`
+- `ai-ops`
+- `user-control`
+
+These logical domains are part of the platform contract and should be used by orchestration code.
+
+Each project configuration maps those logical channels to physical platform targets, for example:
+
+- a Slack channel ID,
+- a Discord channel ID,
+- a thread-capable destination with platform-specific metadata.
+
+That mapping belongs to project configuration plus chat adapters, not to domain services.
+
 ### `packages/agents`
 
 Model-provider adapter layer.

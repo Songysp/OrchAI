@@ -10,7 +10,7 @@ class Task(AuditRecord):
     project_id: str
     title: str
     status: TaskStatus = TaskStatus.PENDING
-    stage: TaskStage = TaskStage.INTAKE
+    stage: TaskStage = TaskStage.CREATED
     description: str | None = None
     created_by: str | None = None
     metadata: dict[str, object] = Field(default_factory=dict)

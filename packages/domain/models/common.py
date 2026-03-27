@@ -42,12 +42,14 @@ class TaskStatus(StringEnum):
 
 
 class TaskStage(StringEnum):
-    INTAKE = "intake"
+    CREATED = "created"
     PLANNING = "planning"
-    IMPLEMENTATION = "implementation"
-    REVIEW = "review"
+    BUILDING = "building"
+    REVIEWING = "reviewing"
     TESTING = "testing"
-    DELIVERY = "delivery"
+    WAITING_HUMAN = "waiting_human"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class ApprovalStatus(StringEnum):
