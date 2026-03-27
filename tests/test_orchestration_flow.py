@@ -204,6 +204,18 @@ async def test_orchestration_flow_creates_approval_when_policy_matches(tmp_path:
     assert result.approval_id is not None
     assert len(approvals) == 1
     assert any(delivery.logical_channel == ConversationDomain.USER_CONTROL for delivery in result.chat_deliveries)
+    approval_delivery = next(
+        delivery
+        for delivery in result.chat_deliveries
+        if delivery.logical_channel == ConversationDomain.USER_CONTROL
+        and "Approval ID:" in str(delivery.metadata.get("content", ""))
+    )
+    approval_message = str(approval_delivery.metadata.get("content", ""))
+    assert f"task {created.task_id}" in approval_message
+    assert result.approval_id in approval_message
+    assert "/approve " in approval_message
+    assert "/reject " in approval_message
+    assert "/status " in approval_message
     assert status is not None
     assert status.stage == TaskStage.WAITING_HUMAN
     assert status.status == TaskStatus.BLOCKED

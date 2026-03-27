@@ -219,10 +219,19 @@ class RepresentativeWorkflow:
                 "Task requires human approval before proceeding. "
                 + " ".join(policy_evaluation.reasons)
             )
+            approval_reasons = " | ".join(policy_evaluation.reasons) if policy_evaluation.reasons else "No policy reason provided."
+            approval_request_message = (
+                f"Approval required for task {task.task_id} ({task.title}). "
+                f"Approval ID: {approval.approval_id}. "
+                f"Reason: {approval_reasons}. "
+                f"Approve: /approve {approval.approval_id} [comment]. "
+                f"Reject: /reject {approval.approval_id} [comment]. "
+                f"Status: /status {task.task_id}."
+            )
             chat_deliveries.append(
                 await chat_adapter.post_approval_request(
                     project,
-                    final_status_summary,
+                    approval_request_message,
                 )
             )
             chat_deliveries.append(
