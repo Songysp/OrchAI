@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from apps.orchestrator.services.project_runtime import ProjectRuntime
-from packages.agents.base import AgentTurnRequest, AgentTurnResult
+from packages.agents.base import AgentTurnRequest
 from packages.chat.base import ChatDelivery
 from packages.domain.models import Approval, ApprovalStatus, Decision, Project, Task, TaskStage, TaskStatus
 from packages.domain.models.common import utc_now

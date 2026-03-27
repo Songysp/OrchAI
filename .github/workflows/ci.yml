@@ -25,7 +25,7 @@ jobs:
           pip install ".[dev]"
 
       - name: Lint with ruff
-        run: ruff check .
+        run: ruff check apps packages tests
 
       - name: Compile Python sources
         run: python -m compileall apps packages

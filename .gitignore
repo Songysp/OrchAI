@@ -3,6 +3,8 @@ __pycache__/
 
 .venv/
 .pytest_cache/
+build/
+dist/
 
 data/*.json
 data/projects/

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from packages.agents import AgentFactory, ClaudeAdapter, CodexAdapter, GeminiAdapter
 from packages.domain.models import AgentMapping, Project
 

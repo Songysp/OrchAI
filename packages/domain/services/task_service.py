@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from packages.domain.models import Project, Task, TaskStage, TaskStatus
+from packages.domain.models import Task, TaskStage, TaskStatus
 from packages.domain.models.common import utc_now
 from packages.storage.base import ProjectStore, TaskStore
 
