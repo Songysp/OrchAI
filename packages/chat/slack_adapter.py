@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from packages.chat.base import ChatAdapter, ChatDelivery, ChatMessage
 from packages.domain.models import ConversationDomain, Project
+
+logger = logging.getLogger(__name__)
 
 
 class SlackAdapter(ChatAdapter):
@@ -18,13 +22,24 @@ class SlackAdapter(ChatAdapter):
 
     async def send_message(self, project: Project, message: ChatMessage) -> ChatDelivery:
         binding = self._binding_for(project, message.logical_channel)
-        return ChatDelivery(
+        delivery = ChatDelivery(
             platform=self.platform_name,
             logical_channel=message.logical_channel,
             physical_channel_id=binding.channel_id,
             thread_id=message.thread_id,
-            metadata={"delivery_mode": "placeholder", "thread_enabled": binding.thread_enabled},
+            metadata={
+                "delivery_mode": "placeholder",
+                "thread_enabled": binding.thread_enabled,
+                "content": message.content,
+            },
         )
+        logger.info(
+            "[slack][%s -> %s] %s",
+            message.logical_channel.value,
+            binding.channel_id,
+            message.content,
+        )
+        return delivery
 
     async def send_thread_reply(
         self,
@@ -33,7 +48,7 @@ class SlackAdapter(ChatAdapter):
         parent_message_id: str,
     ) -> ChatDelivery:
         binding = self._binding_for(project, message.logical_channel)
-        return ChatDelivery(
+        delivery = ChatDelivery(
             platform=self.platform_name,
             logical_channel=message.logical_channel,
             physical_channel_id=binding.channel_id,
@@ -42,8 +57,17 @@ class SlackAdapter(ChatAdapter):
                 "delivery_mode": "placeholder",
                 "reply_to_message_id": parent_message_id,
                 "thread_enabled": binding.thread_enabled,
+                "content": message.content,
             },
         )
+        logger.info(
+            "[slack][thread:%s][%s -> %s] %s",
+            parent_message_id,
+            message.logical_channel.value,
+            binding.channel_id,
+            message.content,
+        )
+        return delivery
 
     async def post_approval_request(
         self,

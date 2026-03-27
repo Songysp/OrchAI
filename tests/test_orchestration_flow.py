@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from apps.orchestrator.services.orchestrator_service import OrchestratorService
-from packages.domain.models import TaskStage, TaskStatus
+from packages.domain.models import ApprovalStatus, ConversationDomain, TaskStage, TaskStatus
 from packages.domain.services.registry import PlatformRegistry
 
 
@@ -53,22 +53,32 @@ async def test_representative_orchestration_flow_persists_task_and_decision(tmp_
                 "    role: representative",
                 "    provider: claude",
                 "    model: claude-sonnet",
+                "    parameters:",
+                "      temperature: 0.2",
                 "  planner:",
                 "    role: planner",
                 "    provider: gemini",
                 "    model: gemini-pro",
+                "    parameters:",
+                "      temperature: 0.1",
                 "  builder:",
                 "    role: builder",
                 "    provider: codex",
                 "    model: codex-latest",
+                "    parameters:",
+                "      temperature: 0.0",
                 "  critic:",
                 "    role: critic",
                 "    provider: claude",
                 "    model: claude-sonnet",
+                "    parameters:",
+                "      temperature: 0.3",
                 "  tester:",
                 "    role: tester",
                 "    provider: gemini",
                 "    model: gemini-pro",
+                "    parameters:",
+                "      temperature: 0.1",
             ]
         ),
     )
@@ -87,6 +97,14 @@ async def test_representative_orchestration_flow_persists_task_and_decision(tmp_
     assert result.final_stage == TaskStage.COMPLETED
     assert result.final_status == TaskStatus.COMPLETED
     assert len(result.role_results) == 5
+    builder_result = next(result for result in result.role_results if result.role == "builder")
+    assert builder_result.provider == "codex"
+    assert builder_result.model == "codex-latest"
+    assert builder_result.metadata["parameters"]["temperature"] == 0.0
+    routed_channels = {delivery.logical_channel for delivery in result.chat_deliveries}
+    assert ConversationDomain.USER_CONTROL in routed_channels
+    assert ConversationDomain.AI_COUNCIL in routed_channels
+    assert ConversationDomain.AI_OPS in routed_channels
     assert status_after is not None
     assert status_after.stage == TaskStage.COMPLETED
     assert status_after.status == TaskStatus.COMPLETED
@@ -128,22 +146,42 @@ async def test_orchestration_flow_creates_approval_when_policy_matches(tmp_path:
                 "workspace_path: workspaces/policy-project",
                 "chat_platform: slack",
                 "default_branch: main",
+                "channel_bindings:",
+                "  ai-council:",
+                "    domain: ai-council",
+                "    channel_id: C_COUNCIL",
+                "  ai-ops:",
+                "    domain: ai-ops",
+                "    channel_id: C_OPS",
+                "  user-control:",
+                "    domain: user-control",
+                "    channel_id: C_USER",
                 "agent_mapping:",
                 "  representative:",
                 "    role: representative",
                 "    provider: claude",
+                "    parameters:",
+                "      temperature: 0.2",
                 "  planner:",
                 "    role: planner",
                 "    provider: gemini",
+                "    parameters:",
+                "      temperature: 0.1",
                 "  builder:",
                 "    role: builder",
                 "    provider: codex",
+                "    parameters:",
+                "      temperature: 0.0",
                 "  critic:",
                 "    role: critic",
                 "    provider: claude",
+                "    parameters:",
+                "      temperature: 0.3",
                 "  tester:",
                 "    role: tester",
                 "    provider: gemini",
+                "    parameters:",
+                "      temperature: 0.1",
                 "rules:",
                 "  - rule_id: require-auth-approval",
                 "    action: require_approval",
@@ -165,6 +203,22 @@ async def test_orchestration_flow_creates_approval_when_policy_matches(tmp_path:
     assert result.approval_required is True
     assert result.approval_id is not None
     assert len(approvals) == 1
+    assert any(delivery.logical_channel == ConversationDomain.USER_CONTROL for delivery in result.chat_deliveries)
     assert status is not None
     assert status.stage == TaskStage.WAITING_HUMAN
     assert status.status == TaskStatus.BLOCKED
+
+    approval_id = result.approval_id
+    assert approval_id is not None
+
+    approval_result = await service.approve_approval(
+        approval_id=approval_id,
+        approved_by="tester",
+        comment="Approved to continue",
+        resume_task=True,
+    )
+    assert approval_result is not None
+    assert approval_result["approval"].status == ApprovalStatus.APPROVED
+    assert approval_result["resumed"] is True
+    assert approval_result["task"].stage == TaskStage.COMPLETED
+    assert approval_result["task"].status == TaskStatus.COMPLETED

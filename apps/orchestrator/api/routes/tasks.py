@@ -17,19 +17,22 @@ async def create_task(
     if service.get_project(payload.project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    created = service.create_task(project_id=payload.project_id, user_input=payload.user_input)
-    result = await service.run_task(created.task_id)
+    result = await service.handle_user_control_message(
+        project_id=payload.project_id,
+        user_input=payload.user_input,
+    )
 
     return TaskRunResponse(
         task_id=result.task_id,
         project_id=result.project_id,
-        title=created.title,
+        title=result.title,
         final_status=result.final_status.value,
         final_stage=result.final_stage.value,
         summary=result.representative_summary,
         decision_id=result.decision_id,
         approval_required=result.approval_required,
         approval_id=result.approval_id,
+        chat_delivery_count=len(result.chat_deliveries),
     )
 
 

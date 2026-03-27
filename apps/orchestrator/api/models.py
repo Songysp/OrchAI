@@ -20,6 +20,7 @@ class TaskRunResponse(BaseModel):
     decision_id: str
     approval_required: bool
     approval_id: str | None = None
+    chat_delivery_count: int = 0
 
 
 class TaskStatusResponse(BaseModel):
@@ -43,3 +44,27 @@ class ProjectDetailResponse(ProjectSummaryResponse):
     description: str | None = None
     workspace_path: str
     channel_bindings: dict[str, str]
+
+
+class ApprovalActionRequest(BaseModel):
+    approved_by: str
+    comment: str | None = None
+    resume_task: bool = True
+
+
+class ApprovalResponse(BaseModel):
+    approval_id: str
+    task_id: str
+    project_id: str
+    status: str
+    approved_by: str | None = None
+    comment: str | None = None
+    created_at: datetime
+
+
+class ApprovalActionResponse(BaseModel):
+    approval: ApprovalResponse
+    resumed: bool = False
+    task_id: str
+    task_stage: str
+    task_status: str

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from apps.orchestrator.services.project_runtime import ProjectRuntime
 from apps.orchestrator.workflows.representative import RepresentativeWorkflow, TaskRunResult
-from packages.domain.models import Approval, Decision, Task, TaskStage, TaskStatus
+from packages.domain.models import Approval, ApprovalStatus, Decision, Task, TaskStage, TaskStatus
 from packages.domain.services import DecisionService, TaskService, TaskStatusView
 from packages.domain.services.registry import PlatformRegistry
 
@@ -60,6 +60,18 @@ class OrchestratorService:
         task = self.task_service.create_task(project_id=project_id, user_input=user_input)
         return CreateTaskResult(task_id=task.task_id, project_id=task.project_id, title=task.title)
 
+    async def handle_user_control_message(self, project_id: str, user_input: str) -> TaskRunResult:
+        created = self.create_task(project_id=project_id, user_input=user_input)
+        project = self.runtime.get_project(project_id)
+        chat_adapter = self.runtime.get_chat_adapter(project)
+        initial_delivery = await chat_adapter.post_user_message(
+            project,
+            f"Representative received your request and created task {created.task_id}: {created.title}",
+        )
+        result = await self.run_task(created.task_id)
+        result.chat_deliveries.insert(0, initial_delivery)
+        return result
+
     async def run_task(self, task_id: str) -> TaskRunResult:
         task = self.task_service.get_task(task_id)
         if task is None:
@@ -113,5 +125,84 @@ class OrchestratorService:
         )
         return self.registry.approval_store.upsert_approval(approval)
 
+    async def approve_approval(
+        self,
+        approval_id: str,
+        approved_by: str,
+        comment: str | None = None,
+        resume_task: bool = True,
+    ) -> dict[str, object] | None:
+        approval = self._get_approval_by_id(approval_id)
+        if approval is None:
+            return None
+
+        updated_approval = approval.model_copy(
+            update={
+                "status": ApprovalStatus.APPROVED,
+                "approved_by": approved_by,
+                "comment": comment,
+            }
+        )
+        self.registry.approval_store.upsert_approval(updated_approval)
+
+        task = self.task_service.get_task(updated_approval.task_id)
+        if task is None:
+            raise ValueError(f"Task '{updated_approval.task_id}' was not found for approval '{approval_id}'.")
+
+        resumed = False
+        if resume_task and task.stage == TaskStage.WAITING_HUMAN:
+            resumed = True
+            await self.run_task(task.task_id)
+            task = self.task_service.get_task(task.task_id)
+            if task is None:
+                raise ValueError(f"Task '{updated_approval.task_id}' was not found after resume.")
+        else:
+            task = self.task_service.transition_task(
+                task,
+                stage=task.stage,
+                status=task.status,
+                summary=task.metadata.get("status_summary") if isinstance(task.metadata.get("status_summary"), str) else None,
+            )
+
+        return {"approval": updated_approval, "task": task, "resumed": resumed}
+
+    def reject_approval(
+        self,
+        approval_id: str,
+        approved_by: str,
+        comment: str | None = None,
+    ) -> dict[str, object] | None:
+        approval = self._get_approval_by_id(approval_id)
+        if approval is None:
+            return None
+
+        updated_approval = approval.model_copy(
+            update={
+                "status": ApprovalStatus.REJECTED,
+                "approved_by": approved_by,
+                "comment": comment,
+            }
+        )
+        self.registry.approval_store.upsert_approval(updated_approval)
+
+        task = self.task_service.get_task(updated_approval.task_id)
+        if task is None:
+            raise ValueError(f"Task '{updated_approval.task_id}' was not found for approval '{approval_id}'.")
+
+        updated_task = self.task_service.transition_task(
+            task,
+            stage=TaskStage.FAILED,
+            status=TaskStatus.FAILED,
+            summary=f"Approval '{approval_id}' was rejected.",
+        )
+        return {"approval": updated_approval, "task": updated_task}
+
     def list_conversations(self, project_id: str | None = None):
         return []
+
+    def _get_approval_by_id(self, approval_id: str) -> Approval | None:
+        for project in self.registry.project_store.list_projects():
+            approval = self.registry.approval_store.get_approval(project.project_id, approval_id)
+            if approval is not None:
+                return approval
+        return None

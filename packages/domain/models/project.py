@@ -23,6 +23,7 @@ class AgentMapping(PlatformBaseModel):
     role: str
     provider: str
     model: str | None = None
+    parameters: dict[str, object] = Field(default_factory=dict)
     metadata: dict[str, object] = Field(default_factory=dict)
 
 

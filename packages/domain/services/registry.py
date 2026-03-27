@@ -6,6 +6,9 @@ from packages.agents.base import AgentAdapter
 from packages.agents.claude_adapter import ClaudeAdapter
 from packages.agents.codex_adapter import CodexAdapter
 from packages.agents.gemini_adapter import GeminiAdapter
+from packages.chat.base import ChatAdapter
+from packages.chat.discord_adapter import DiscordAdapter
+from packages.chat.slack_adapter import SlackAdapter
 from packages.config.loader import ConfigLoader
 from packages.config.models import LoadedConfig
 from packages.rules import SimpleRulesEngine
@@ -33,6 +36,10 @@ class PlatformRegistry:
             "claude": ClaudeAdapter(),
             "gemini": GeminiAdapter(),
             "codex": CodexAdapter(),
+        }
+        self.chat_adapters: dict[str, ChatAdapter] = {
+            "slack": SlackAdapter(),
+            "discord": DiscordAdapter(),
         }
         self.rules_engine = SimpleRulesEngine()
 

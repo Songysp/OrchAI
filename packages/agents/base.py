@@ -8,10 +8,18 @@ from pydantic import BaseModel, Field
 from packages.domain.models import Project
 
 
+class AgentSelection(BaseModel):
+    role: str
+    provider: str
+    model: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentTurnRequest(BaseModel):
     project: Project
     role: str
     prompt: str
+    agent_selection: AgentSelection
     context: dict[str, Any] = Field(default_factory=dict)
 
 

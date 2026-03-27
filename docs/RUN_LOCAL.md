@@ -48,3 +48,10 @@ Request body:
   "user_input": "Build the first representative AI workflow"
 }
 ```
+
+This request simulates a `user-control` channel message:
+
+- task is created,
+- representative workflow runs,
+- mock chat deliveries are routed to `user-control`, `ai-council`, and `ai-ops`,
+- the final summary is returned by the API.
