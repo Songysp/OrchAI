@@ -29,6 +29,7 @@ class ChatIngressService:
 
     _event_cache_ttl_seconds = 300
     _event_cache_max_entries = 10_000
+    _default_recent_limit = 5
     _seen_event_keys: OrderedDict[str, float] = OrderedDict()
     _seen_event_lock = asyncio.Lock()
 
@@ -87,7 +88,7 @@ class ChatIngressService:
 
         if action == "help":
             help_message = (
-                "Available commands: /help, /approvals, /status <task_id>, "
+                "Available commands: /help, /approvals, /tasks, /latest, /decisions, /status <task_id>, "
                 "/approve <approval_id> [comment], /reject <approval_id> [comment]."
             )
             await chat_adapter.post_user_message(project, help_message)
@@ -113,6 +114,84 @@ class ChatIngressService:
             return ChatIngressResult(
                 accepted=True,
                 action="approvals_listed",
+                message=message,
+            )
+
+        if action == "list_tasks":
+            tasks = sorted(
+                self.orchestrator.list_tasks(project.project_id),
+                key=lambda task: task.created_at,
+                reverse=True,
+            )
+            recent_tasks = tasks[: self._default_recent_limit]
+            if recent_tasks:
+                items = ", ".join(
+                    f"{task.task_id} [{task.status.value}] {self._shorten(task.title, 60)}"
+                    for task in recent_tasks
+                )
+                message = f"Recent tasks ({len(recent_tasks)}): {items}"
+            else:
+                message = "There are no tasks for this project yet."
+            await chat_adapter.post_user_message(project, message)
+            return ChatIngressResult(
+                accepted=True,
+                action="tasks_listed",
+                message=message,
+            )
+
+        if action == "latest_task":
+            tasks = sorted(
+                self.orchestrator.list_tasks(project.project_id),
+                key=lambda task: task.created_at,
+                reverse=True,
+            )
+            latest = tasks[0] if tasks else None
+            if latest is None:
+                message = "There is no task history for this project yet."
+                await chat_adapter.post_user_message(project, message)
+                return ChatIngressResult(
+                    accepted=True,
+                    action="latest_task",
+                    message=message,
+                )
+
+            summary_value = latest.metadata.get("status_summary")
+            summary = summary_value if isinstance(summary_value, str) and summary_value.strip() else "No summary yet."
+            message = (
+                f"Latest task {latest.task_id}: [{latest.status.value}] {self._shorten(latest.title, 80)}. "
+                f"Summary: {summary}"
+            )
+            await chat_adapter.post_user_message(project, message)
+            return ChatIngressResult(
+                accepted=True,
+                action="latest_task",
+                message=message,
+                task_id=latest.task_id,
+                task_status=latest.status.value,
+            )
+
+        if action == "list_decisions":
+            decisions = sorted(
+                self.orchestrator.list_decisions(project.project_id),
+                key=lambda decision: decision.created_at,
+                reverse=True,
+            )
+            recent_decisions = decisions[: self._default_recent_limit]
+            if recent_decisions:
+                items = ", ".join(
+                    (
+                        f"{decision.decision_id} (task {decision.task_id}) "
+                        f"{self._shorten(decision.summary, 80)}"
+                    )
+                    for decision in recent_decisions
+                )
+                message = f"Recent decisions ({len(recent_decisions)}): {items}"
+            else:
+                message = "There are no recorded decisions for this project yet."
+            await chat_adapter.post_user_message(project, message)
+            return ChatIngressResult(
+                accepted=True,
+                action="decisions_listed",
                 message=message,
             )
 
@@ -270,3 +349,10 @@ class ChatIngressService:
             if oldest_seen > expiry_cutoff:
                 break
             cls._seen_event_keys.popitem(last=False)
+
+    @staticmethod
+    def _shorten(text: str, max_len: int) -> str:
+        compact = " ".join(text.split())
+        if len(compact) <= max_len:
+            return compact
+        return compact[: max_len - 3].rstrip() + "..."

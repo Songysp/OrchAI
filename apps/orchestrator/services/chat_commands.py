@@ -26,6 +26,15 @@ class ChatCommandParser:
         if command == "/approvals":
             return ParsedChatCommand(action="list_approvals")
 
+        if command == "/tasks":
+            return ParsedChatCommand(action="list_tasks")
+
+        if command == "/latest":
+            return ParsedChatCommand(action="latest_task")
+
+        if command == "/decisions":
+            return ParsedChatCommand(action="list_decisions")
+
         if command == "/status":
             target_id = parts[1].strip() if len(parts) > 1 else None
             return ParsedChatCommand(action="task_status", target_id=target_id)

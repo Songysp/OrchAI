@@ -320,6 +320,135 @@ def test_slack_approvals_command_lists_pending_items() -> None:
     assert "Pending approvals:" in payload["message"]
 
 
+def test_slack_tasks_command_lists_recent_tasks() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
+    client = TestClient(create_app())
+
+    first = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
+            "type": "event_callback",
+            "event": {
+                "type": "message",
+                "channel": "C_USER_CONTROL",
+                "user": "U123",
+                "text": "First task for tasks listing",
+                "ts": "1710000000.000700",
+            },
+        },
+    )
+    assert first.status_code == 200
+    second = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
+            "type": "event_callback",
+            "event": {
+                "type": "message",
+                "channel": "C_USER_CONTROL",
+                "user": "U123",
+                "text": "Second task for tasks listing",
+                "ts": "1710000000.000701",
+            },
+        },
+    )
+    assert second.status_code == 200
+
+    response = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
+            "type": "event_callback",
+            "event": {
+                "type": "message",
+                "channel": "C_USER_CONTROL",
+                "user": "U123",
+                "text": "/tasks",
+                "ts": "1710000000.000702",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["accepted"] is True
+    assert payload["action"] == "tasks_listed"
+    assert "Recent tasks" in payload["message"]
+    assert "Second task for tasks listing" in payload["message"]
+
+
+def test_discord_latest_command_returns_latest_task_summary() -> None:
+    client = TestClient(create_app())
+
+    created = client.post(
+        "/api/integrations/discord/sample-discord-project/events",
+        json={
+            "type": "message_create",
+            "id": "m-006",
+            "channel_id": "discord-user-control",
+            "content": "Create latest task summary test item",
+            "author": {"id": "user-4", "username": "operator", "bot": False},
+        },
+    )
+    assert created.status_code == 200
+    task_id = created.json()["task_id"]
+
+    response = client.post(
+        "/api/integrations/discord/sample-discord-project/events",
+        json={
+            "type": "message_create",
+            "id": "m-007",
+            "channel_id": "discord-user-control",
+            "content": "/latest",
+            "author": {"id": "user-4", "username": "operator", "bot": False},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["accepted"] is True
+    assert payload["action"] == "latest_task"
+    assert payload["task_id"] == task_id
+    assert "Latest task" in payload["message"]
+    assert "Summary:" in payload["message"]
+
+
+def test_discord_decisions_command_lists_recent_decisions() -> None:
+    client = TestClient(create_app())
+
+    created = client.post(
+        "/api/integrations/discord/sample-discord-project/events",
+        json={
+            "type": "message_create",
+            "id": "m-008",
+            "channel_id": "discord-user-control",
+            "content": "Create decision history sample",
+            "author": {"id": "user-5", "username": "operator", "bot": False},
+        },
+    )
+    assert created.status_code == 200
+
+    response = client.post(
+        "/api/integrations/discord/sample-discord-project/events",
+        json={
+            "type": "message_create",
+            "id": "m-009",
+            "channel_id": "discord-user-control",
+            "content": "/decisions",
+            "author": {"id": "user-5", "username": "operator", "bot": False},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["accepted"] is True
+    assert payload["action"] == "decisions_listed"
+    assert "Recent decisions" in payload["message"]
+
+
 def test_slack_event_rejects_invalid_signature() -> None:
     import os
 

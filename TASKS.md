@@ -32,9 +32,9 @@ Managed by Claude. Updated after every task completion.
 
 | # | Task | Status | Assignee | Notes |
 |---|------|--------|----------|-------|
-| 2.1 | Add `/tasks` command ??list recent tasks | OPEN | Codex | |
-| 2.2 | Add `/latest` command ??show most recent task summary | OPEN | Codex | |
-| 2.3 | Add `/decisions` command ??list recent decisions | OPEN | Codex | |
+| 2.1 | Add `/tasks` command ??list recent tasks | DONE | Codex | Added user-control command handler with recent-first task listing (top 5) including status/title. |
+| 2.2 | Add `/latest` command ??show most recent task summary | DONE | Codex | Added latest-task command returning most recent task id/status/title with summary fallback. |
+| 2.3 | Add `/decisions` command ??list recent decisions | DONE | Codex | Added recent-first decision listing command (top 5) with task linkage and summary snippet. |
 | 2.4 | Improve approval wait summary message | OPEN | Codex | More context in the approval request message |
 | 2.5 | Resume from checkpoint (not restart) after approval | OPEN | Claude + Codex | Architecture decision needed first |
 
