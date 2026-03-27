@@ -1,0 +1,68 @@
+project_id: sample-discord-project
+name: Sample Discord Project
+description: Sample multi-agent software project configured for Discord.
+chat_platform: discord
+workspace_path: workspaces/sample-discord-project
+execution_backend: cli
+repo:
+  url: https://github.com/example/sample-discord-project
+  default_branch: main
+  provider: github
+channel_bindings:
+  ai-council:
+    domain: ai-council
+    channel_id: discord-ai-council
+    thread_enabled: true
+  ai-ops:
+    domain: ai-ops
+    channel_id: discord-ai-ops
+    thread_enabled: true
+  user-control:
+    domain: user-control
+    channel_id: discord-user-control
+    thread_enabled: true
+agent_mapping:
+  representative:
+    role: representative
+    provider: claude
+    model: claude-sonnet
+  planner:
+    role: planner
+    provider: gemini
+    model: gemini-pro
+  scout:
+    role: scout
+    provider: gemini
+    model: gemini-pro
+  builder:
+    role: builder
+    provider: codex
+    model: codex-latest
+  critic:
+    role: critic
+    provider: claude
+    model: claude-sonnet
+  tester:
+    role: tester
+    provider: gemini
+    model: gemini-pro
+commands:
+  plan: python -m pytest -q
+  build: docker compose build
+  test: pytest
+  lint: python -m compileall .
+  fix: pytest -x
+rules:
+  - rule_id: require-auth-approval
+    condition: auth
+    action: require_approval
+  - rule_id: require-db-approval
+    condition: schema
+    action: require_approval
+  - rule_id: require-delete-approval
+    condition: delete
+    action: require_approval
+metadata:
+  discord:
+    intents_profile: guild_messages
+    reply_mode: thread_or_channel
