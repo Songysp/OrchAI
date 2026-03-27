@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import time
+from collections import OrderedDict
+
 from pydantic import BaseModel
 
 from apps.orchestrator.services.chat_commands import ChatCommandParser
@@ -23,11 +27,24 @@ class ChatIngressResult(BaseModel):
 class ChatIngressService:
     """Platform-neutral ingress coordinator for chat-triggered actions."""
 
+    _event_cache_ttl_seconds = 300
+    _event_cache_max_entries = 10_000
+    _seen_event_keys: OrderedDict[str, float] = OrderedDict()
+    _seen_event_lock = asyncio.Lock()
+
     def __init__(self, orchestrator: OrchestratorService) -> None:
         self.orchestrator = orchestrator
         self.command_parser = ChatCommandParser()
 
     async def handle_event(self, event: InboundChatEvent) -> ChatIngressResult:
+        event_key = self._build_event_key(event)
+        if event_key and await self._is_duplicate_event(event_key):
+            return ChatIngressResult(
+                accepted=True,
+                action="duplicate_ignored",
+                message=f"Ignored duplicate {event.platform} event '{event_key}'.",
+            )
+
         if event.logical_channel != ConversationDomain.USER_CONTROL:
             return ChatIngressResult(
                 accepted=True,
@@ -218,3 +235,38 @@ class ChatIngressService:
             message=f"Unsupported command action '{action}'.",
             approval_id=target_id,
         )
+
+    def _build_event_key(self, event: InboundChatEvent) -> str | None:
+        event_id = event.metadata.get("event_id")
+        normalized_event_id: str | None = None
+        if isinstance(event_id, str):
+            normalized_event_id = event_id or None
+        elif isinstance(event_id, (int, float)):
+            normalized_event_id = str(event_id)
+        else:
+            normalized_event_id = event.message_id
+        if not normalized_event_id:
+            return None
+        return f"{event.platform}:{event.project_id}:{normalized_event_id}"
+
+    async def _is_duplicate_event(self, event_key: str) -> bool:
+        now = time.time()
+        async with self._seen_event_lock:
+            self._evict_expired_locked(now)
+            if event_key in self._seen_event_keys:
+                self._seen_event_keys.move_to_end(event_key)
+                return True
+            self._seen_event_keys[event_key] = now
+            if len(self._seen_event_keys) > self._event_cache_max_entries:
+                self._seen_event_keys.popitem(last=False)
+            return False
+
+    @classmethod
+    def _evict_expired_locked(cls, now: float) -> None:
+        expiry_cutoff = now - cls._event_cache_ttl_seconds
+        while cls._seen_event_keys:
+            oldest_key = next(iter(cls._seen_event_keys))
+            oldest_seen = cls._seen_event_keys[oldest_key]
+            if oldest_seen > expiry_cutoff:
+                break
+            cls._seen_event_keys.popitem(last=False)

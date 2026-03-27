@@ -14,6 +14,9 @@ class DiscordEventTranslator:
         if event_type not in {"message_create", "message"}:
             return None
 
+        if payload.get("bot_id"):
+            return None
+
         author = payload.get("author")
         if isinstance(author, dict) and author.get("bot"):
             return None
@@ -31,7 +34,10 @@ class DiscordEventTranslator:
             content=str(payload.get("content", "")),
             message_id=str(payload.get("id", "")),
             thread_id=str(payload.get("thread_id") or "") or None,
-            metadata={"raw_event_type": event_type},
+            metadata={
+                "raw_event_type": event_type,
+                "event_id": payload.get("id"),
+            },
         )
 
     def _resolve_logical_channel(self, project: Project, channel_id: str) -> ConversationDomain:

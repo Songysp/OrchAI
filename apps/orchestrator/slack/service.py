@@ -54,6 +54,8 @@ class SlackEventTranslator:
             return None
         if event.get("subtype") == "bot_message":
             return None
+        if event.get("bot_id"):
+            return None
 
         channel_id = str(event.get("channel", ""))
         logical_channel = self._resolve_logical_channel(project, channel_id)
@@ -67,7 +69,10 @@ class SlackEventTranslator:
             content=str(event.get("text", "")),
             message_id=str(event.get("client_msg_id") or event.get("ts") or ""),
             thread_id=str(event.get("thread_ts") or "") or None,
-            metadata={"raw_event_type": event.get("type")},
+            metadata={
+                "raw_event_type": event.get("type"),
+                "event_id": payload.get("event_id"),
+            },
         )
 
     def _resolve_logical_channel(self, project: Project, channel_id: str) -> ConversationDomain:

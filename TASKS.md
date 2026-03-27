@@ -23,8 +23,8 @@ Managed by Claude. Updated after every task completion.
 | 1.1 | Slack Socket Mode ? real event connection | DONE | Codex | Implemented Socket Mode runtime startup/shutdown + channel-routed ingress; requires SLACK_APP_TOKEN |
 | 1.2 | Slack signature verification (X-Slack-Signature) | DONE | Codex | Enforced v0 HMAC + timestamp validation on Slack HTTP ingress before payload handling (`SLACK_SIGNING_SECRET`) |
 | 1.3 | Discord gateway/webhook real event connection | DONE | Codex | Added Discord gateway runtime startup/shutdown + channel-routed ingress; requires DISCORD_BOT_TOKEN |
-| 1.4 | Bot message loop prevention (ignore bot_id messages) | OPEN | Codex | Both Slack and Discord |
-| 1.5 | Duplicate event prevention (deduplication by event_id) | OPEN | Codex | Both Slack and Discord |
+| 1.4 | Bot message loop prevention (ignore bot_id messages) | DONE | Codex | Added translator-level bot_id filtering for Slack and Discord inbound message events |
+| 1.5 | Duplicate event prevention (deduplication by event_id) | DONE | Codex | Added ingress-level bounded dedup cache keyed by platform/project/event_id with duplicate ignore action |
 
 ---
 
