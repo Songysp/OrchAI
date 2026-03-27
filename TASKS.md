@@ -47,7 +47,7 @@ Managed by Claude. Updated after every task completion.
 | 3.1 | `GET /api/tasks` ??paginated task list endpoint | DONE | Codex | Added paginated list endpoint (`project_id`, `limit`, `offset`) with explicit response schema |
 | 3.2 | `GET /api/decisions` ??decision list endpoint | DONE | Codex | Added paginated decision list endpoint (`project_id`, `task_id`, `limit`, `offset`) and wired router in app |
 | 3.3 | `GET /api/approvals` ??approval queue endpoint | DONE | Codex | Reviewed existing schema contract and added API smoke test coverage (no schema change required) |
-| 3.4 | Conversation history model + endpoint | OPEN | Claude + Codex | Model design needed first |
+| 3.4 | Conversation history model + endpoint | DONE | Claude + Codex | Added task-linked conversation history model, paginated `GET /api/conversations`, and API smoke coverage |
 | 3.5 | Enrich `GET /api/projects/{project_id}` with runtime status | DONE | Codex | Added runtime fields (`runtime_enabled`, `runtime_started`, `runtime_mode`) sourced from app runtime state |
 
 ---

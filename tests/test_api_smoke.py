@@ -172,3 +172,46 @@ def test_approvals_list_schema_review_contract() -> None:
     assert "approved_by" in item
     assert "comment" in item
     assert "created_at" in item
+
+
+def test_conversations_endpoint_returns_history_items() -> None:
+    create_response = client.post(
+        "/api/tasks",
+        json={
+            "project_id": "sample-slack-project",
+            "user_input": "Conversation history endpoint smoke check",
+        },
+    )
+    assert create_response.status_code == 200
+    task_payload = create_response.json()
+
+    response = client.get(
+        "/api/conversations",
+        params={
+            "project_id": "sample-slack-project",
+            "task_id": task_payload["task_id"],
+            "limit": 5,
+            "offset": 0,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["limit"] == 5
+    assert payload["offset"] == 0
+    assert payload["total"] >= 1
+    assert len(payload["items"]) >= 1
+
+    item = payload["items"][0]
+    assert item["project_id"] == "sample-slack-project"
+    assert item["task_id"] == task_payload["task_id"]
+    assert "conversation_id" in item
+    assert "domain" in item
+    assert "title" in item
+    assert "messages" in item
+    assert len(item["messages"]) >= 1
+
+    message = item["messages"][0]
+    assert "message_id" in message
+    assert "domain" in message
+    assert "role" in message
+    assert "content" in message

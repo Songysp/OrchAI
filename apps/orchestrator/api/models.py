@@ -66,6 +66,35 @@ class DecisionListResponse(BaseModel):
     offset: int
 
 
+class ConversationMessageResponse(BaseModel):
+    message_id: str
+    project_id: str
+    domain: str
+    role: str
+    content: str
+    envelope: dict[str, str | None] | None = None
+    metadata: dict[str, object]
+
+
+class ConversationThreadResponse(BaseModel):
+    conversation_id: str
+    project_id: str
+    task_id: str | None = None
+    domain: str
+    title: str
+    summary: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    messages: list[ConversationMessageResponse]
+
+
+class ConversationListResponse(BaseModel):
+    items: list[ConversationThreadResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class ProjectSummaryResponse(BaseModel):
     project_id: str
     name: str | None = None

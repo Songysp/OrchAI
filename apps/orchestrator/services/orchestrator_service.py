@@ -4,7 +4,18 @@ from pydantic import BaseModel
 
 from apps.orchestrator.services.project_runtime import ProjectRuntime
 from apps.orchestrator.workflows.representative import RepresentativeWorkflow, TaskRunResult
-from packages.domain.models import Approval, ApprovalStatus, Decision, Task, TaskStage, TaskStatus
+from packages.domain.models import (
+    Approval,
+    ApprovalStatus,
+    ConversationMessage,
+    ConversationThread,
+    ConversationDomain,
+    Decision,
+    MessageEnvelope,
+    Task,
+    TaskStage,
+    TaskStatus,
+)
 from packages.domain.services import DecisionService, TaskService, TaskStatusView
 from packages.domain.services.registry import PlatformRegistry
 
@@ -195,7 +206,141 @@ class OrchestratorService:
         return {"approval": updated_approval, "task": updated_task}
 
     def list_conversations(self, project_id: str | None = None):
-        return []
+        tasks = self.list_tasks(project_id)
+        decisions_by_task: dict[tuple[str, str], Decision] = {}
+        approvals_by_task: dict[tuple[str, str], list[Approval]] = {}
+
+        for task_item in tasks:
+            key = (task_item.project_id, task_item.task_id)
+            decisions = self.registry.decision_store.list_decisions(task_item.project_id, task_item.task_id)
+            if decisions:
+                decisions_by_task[key] = sorted(decisions, key=lambda item: item.created_at, reverse=True)[0]
+            approvals_by_task[key] = self.registry.approval_store.list_approvals(task_item.project_id, task_item.task_id)
+
+        conversations: list[ConversationThread] = []
+        for task_item in tasks:
+            key = (task_item.project_id, task_item.task_id)
+            run_metadata = task_item.metadata.get("run")
+            if not isinstance(run_metadata, dict):
+                continue
+
+            messages: list[ConversationMessage] = []
+            task_description = task_item.description.strip() if isinstance(task_item.description, str) else ""
+            if task_description:
+                messages.append(
+                    ConversationMessage(
+                        project_id=task_item.project_id,
+                        domain=ConversationDomain.USER_CONTROL,
+                        role="user",
+                        content=task_description,
+                    )
+                )
+
+            role_results = run_metadata.get("role_results")
+            if isinstance(role_results, list):
+                for role_result in role_results:
+                    if not isinstance(role_result, dict):
+                        continue
+                    role = role_result.get("role")
+                    output = role_result.get("output")
+                    if isinstance(role, str) and isinstance(output, str):
+                        messages.append(
+                            ConversationMessage(
+                                project_id=task_item.project_id,
+                                domain=ConversationDomain.AI_OPS,
+                                role=role,
+                                content=output,
+                                metadata={
+                                    "provider": role_result.get("provider"),
+                                    "model": role_result.get("model"),
+                                },
+                            )
+                        )
+
+            chat_deliveries = run_metadata.get("chat_deliveries")
+            if isinstance(chat_deliveries, list):
+                for delivery in chat_deliveries:
+                    if not isinstance(delivery, dict):
+                        continue
+                    logical_channel = delivery.get("logical_channel")
+                    if not isinstance(logical_channel, str):
+                        continue
+                    try:
+                        domain = ConversationDomain(logical_channel)
+                    except ValueError:
+                        continue
+                    messages.append(
+                        ConversationMessage(
+                            project_id=task_item.project_id,
+                            domain=domain,
+                            role="chat_delivery",
+                            content=f"Delivered message to {delivery.get('platform')}:{delivery.get('physical_channel_id')}",
+                            envelope=MessageEnvelope(
+                                platform=str(delivery.get("platform")),
+                                channel_id=str(delivery.get("physical_channel_id")),
+                                thread_id=delivery.get("thread_id")
+                                if isinstance(delivery.get("thread_id"), str)
+                                else None,
+                                message_id=delivery.get("message_id")
+                                if isinstance(delivery.get("message_id"), str)
+                                else None,
+                            ),
+                            metadata=delivery.get("metadata")
+                            if isinstance(delivery.get("metadata"), dict)
+                            else {},
+                        )
+                    )
+
+            decision = decisions_by_task.get(key)
+            if decision is not None:
+                messages.append(
+                    ConversationMessage(
+                        project_id=task_item.project_id,
+                        domain=ConversationDomain.AI_COUNCIL,
+                        role="decision",
+                        content=decision.summary,
+                        metadata={
+                            "decision_id": decision.decision_id,
+                            "chosen_option": decision.chosen_option,
+                        },
+                    )
+                )
+
+            approvals = approvals_by_task.get(key, [])
+            for approval in approvals:
+                messages.append(
+                    ConversationMessage(
+                        project_id=task_item.project_id,
+                        domain=ConversationDomain.USER_CONTROL,
+                        role="approval",
+                        content=approval.comment or f"Approval status changed to {approval.status.value}.",
+                        metadata={
+                            "approval_id": approval.approval_id,
+                            "status": approval.status.value,
+                            "approved_by": approval.approved_by,
+                        },
+                    )
+                )
+
+            if not messages:
+                continue
+
+            conversations.append(
+                ConversationThread(
+                    project_id=task_item.project_id,
+                    task_id=task_item.task_id,
+                    domain=ConversationDomain.AI_OPS,
+                    title=task_item.title,
+                    summary=task_item.metadata.get("status_summary")
+                    if isinstance(task_item.metadata.get("status_summary"), str)
+                    else None,
+                    messages=messages,
+                    created_at=task_item.created_at,
+                    updated_at=task_item.updated_at,
+                )
+            )
+
+        return sorted(conversations, key=lambda item: item.created_at, reverse=True)
 
     def _get_approval_by_id(self, approval_id: str) -> Approval | None:
         for project in self.registry.project_store.list_projects():

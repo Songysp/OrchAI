@@ -28,6 +28,7 @@ class ConversationMessage(PlatformBaseModel):
 class ConversationThread(AuditRecord):
     conversation_id: str = Field(default_factory=new_id)
     project_id: str
+    task_id: str | None = None
     domain: ConversationDomain
     title: str
     summary: str | None = None
