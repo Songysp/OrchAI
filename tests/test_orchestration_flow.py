@@ -234,3 +234,9 @@ async def test_orchestration_flow_creates_approval_when_policy_matches(tmp_path:
     assert approval_result["resumed"] is True
     assert approval_result["task"].stage == TaskStage.COMPLETED
     assert approval_result["task"].status == TaskStatus.COMPLETED
+    resumed_task = service.task_service.get_task(created.task_id)
+    assert resumed_task is not None
+    assert resumed_task.metadata["run"]["resumed_from_checkpoint"] is True
+    assert resumed_task.metadata["run"]["resumed_approval_id"] == approval_id
+    decisions_after_resume = service.list_decisions("policy-project")
+    assert len(decisions_after_resume) == 1

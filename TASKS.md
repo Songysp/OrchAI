@@ -36,7 +36,7 @@ Managed by Claude. Updated after every task completion.
 | 2.2 | Add `/latest` command ??show most recent task summary | DONE | Codex | Added latest-task command returning most recent task id/status/title with summary fallback. |
 | 2.3 | Add `/decisions` command ??list recent decisions | DONE | Codex | Added recent-first decision listing command (top 5) with task linkage and summary snippet. |
 | 2.4 | Improve approval wait summary message | DONE | Codex | Approval wait message now includes task/approval IDs, reasons, and /approve /reject /status command hints |
-| 2.5 | Resume from checkpoint (not restart) after approval | OPEN | Claude + Codex | Architecture decision needed first |
+| 2.5 | Resume from checkpoint (not restart) after approval | DONE | Claude + Codex | Approval now resumes from saved checkpoint metadata, marks task completed without rerunning full orchestration, and avoids duplicate decisions |
 
 ---
 

@@ -152,10 +152,7 @@ class OrchestratorService:
         resumed = False
         if resume_task and task.stage == TaskStage.WAITING_HUMAN:
             resumed = True
-            await self.run_task(task.task_id)
-            task = self.task_service.get_task(task.task_id)
-            if task is None:
-                raise ValueError(f"Task '{updated_approval.task_id}' was not found after resume.")
+            task = await self.representative_workflow.resume_from_checkpoint(task, updated_approval)
         else:
             task = self.task_service.transition_task(
                 task,

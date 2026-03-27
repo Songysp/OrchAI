@@ -283,6 +283,28 @@ class RepresentativeWorkflow:
             approval_required=policy_evaluation.approval_required,
         )
 
+    async def resume_from_checkpoint(self, task: Task, approval: Approval) -> Task:
+        metadata = dict(task.metadata)
+        run_metadata = metadata.get("run")
+        checkpoint_summary: str | None = None
+        if isinstance(run_metadata, dict):
+            decision_id = run_metadata.get("decision_id")
+            if isinstance(decision_id, str):
+                decision = self.decision_service.decision_store.get_decision(task.project_id, decision_id)
+                if decision is not None:
+                    checkpoint_summary = decision.summary
+            run_metadata["resumed_from_checkpoint"] = True
+            run_metadata["resumed_at"] = utc_now().isoformat()
+            run_metadata["resumed_approval_id"] = approval.approval_id
+
+        resumed_task = task.model_copy(update={"metadata": metadata})
+        return self.task_service.transition_task(
+            resumed_task,
+            stage=TaskStage.COMPLETED,
+            status=TaskStatus.COMPLETED,
+            summary=checkpoint_summary,
+        )
+
     async def _run_role(
         self,
         project: Project,
