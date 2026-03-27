@@ -1,149 +1,144 @@
 # Architecture
 
-This repository is structured as a reusable orchestration platform, not a one-off chat bot.
+This repository is structured as a reusable platform, not a one-off app.
 
-## Core principle
+The system is designed to evolve into:
 
-The user experiences one AI development team, while the platform internally coordinates:
+- a multi-project AI dev team platform,
+- interchangeable Slack and Discord interfaces,
+- a future web dashboard,
+- later database-backed persistence.
 
-- a representative AI for user interaction,
-- planner and scout roles for analysis,
-- a builder role for implementation,
-- a critic role for challenge and review,
-- a tester role for validation.
+## Repository structure
 
-That behavior belongs to the platform domain, not to Slack, Discord, or a future web UI.
+```text
+apps/
+  orchestrator/
+    api/
+    discord/
+    slack/
+    workflows/
+    services/
 
-## Layered design
+packages/
+  agents/
+  chat/
+  config/
+  domain/
+    models/
+    services/
+  execution/
+  github/
+  prompts/
+    roles/
+    system/
+  rules/
+  storage/
+    base.py
+    file_store/
 
-### 1. Domain layer
+configs/
+data/
+docs/
+infra/
+workspaces/
+```
 
-`packages/domain`
+## Layer responsibilities
 
-- Owns project, task, approval, decision, and conversation models
-- Owns orchestration services and task lifecycle logic
-- Does not know whether requests came from Slack, Discord, or HTTP
+### `apps/orchestrator`
 
-### 2. Transport layer
+Application assembly layer for the running service.
 
-`packages/chat`
+- `api/`
+  - FastAPI-facing HTTP entrypoints
+  - should remain thin and delegate to reusable services
+- `discord/`
+  - Discord-specific application integration entrypoints
+- `slack/`
+  - Slack-specific application integration entrypoints
+- `workflows/`
+  - app-level workflow composition for representative and council flows
+- `services/`
+  - app-layer runtime assembly and dependency wiring
 
-- Defines the `ChatAdapter` abstraction
-- Implements `SlackAdapter` and `DiscordAdapter`
-- Maps logical domains to physical channels:
-  - `ai-council`
-  - `ai-ops`
-  - `user-control`
+This layer may know about FastAPI and runtime composition, but it should not own domain rules.
 
-This makes chat platform choice a per-project configuration concern, not a business-logic concern.
+### `packages/domain`
 
-### 3. Agent provider layer
+Reusable platform domain.
 
-`packages/agents`
+- `models/`
+  - project, task, approval, decision, and conversation models
+- `services/`
+  - orchestration and lifecycle services
 
-- Defines `AgentAdapter`
-- Keeps provider-specific behavior behind adapters
-- Allows preferred mappings like Claude for representative and critic, Gemini for planner and tester, and Codex for builder without coupling orchestration to any single vendor
+This layer must remain independent from Slack, Discord, and web concerns.
 
-### 4. Persistence layer
+### `packages/storage`
 
-`packages/storage`
+Persistence abstraction layer.
 
-- Defines store interfaces:
-  - `ProjectStore`
-  - `TaskStore`
-  - `ConversationStore`
-  - `DecisionStore`
-  - `ApprovalStore`
-- Current MVP uses file-backed JSON stores
-- Future Postgres or Redis implementations can replace these behind the same interfaces
+- `base.py`
+  - storage interfaces
+- `file_store/`
+  - file-backed MVP implementation
 
-### 5. Policy layer
+Future Postgres or Redis backends should be added here without breaking callers.
 
-`packages/rules`
+### `packages/chat`
 
-- Evaluates approval and execution policy
-- Keeps project-specific controls configurable
-- Intended for approval-gated changes like auth, schema, or large deletions
+Transport adapter layer.
 
-### 6. Execution and repository integration
+- `base.py`
+  - generic chat adapter contracts
+- `slack_adapter.py`
+  - Slack transport adapter
+- `discord_adapter.py`
+  - Discord transport adapter
 
-`packages/execution` and `packages/github`
+Core orchestration should depend on these abstractions, not on Slack or Discord SDK details directly.
 
-- Separate orchestration from how work is executed
-- Supports a future split between local CLI execution and GitHub Actions execution
-- Prevents the core platform from depending on one runtime model
+### `packages/agents`
 
-### 7. Application layer
+Model-provider adapter layer.
 
-`apps/orchestrator`
+- `base.py`
+- `claude_adapter.py`
+- `codex_adapter.py`
+- `gemini_adapter.py`
 
-- FastAPI app exposing reusable APIs
-- Intended to serve both transport adapters and a future dashboard
-- Keeps request handling thin and pushes behavior into the domain layer
+This keeps provider choice swappable per role.
+
+### `packages/prompts`
+
+Prompt asset organization.
+
+- `roles/`
+  - role-specific prompts such as representative, planner, builder, critic, tester
+- `system/`
+  - system-level platform prompts
+
+Prompt assets should remain reusable and free from project-specific hardcoding.
+
+## Design rules
+
+- keep project-specific behavior config-driven
+- keep chat-platform behavior adapter-driven
+- keep domain logic independent from route handlers
+- keep orchestration logic reusable across chat and future web interfaces
+- keep platform code separate from project workspaces
 
 ## Multi-project model
 
-Each project is configured independently through YAML and includes:
+Each project is expected to define its own configuration for:
 
-- `project_id`
-- repository metadata
-- workspace path
-- selected chat platform
-- logical channel bindings
-- agent-role mapping
-- commands
-- rules
+- repository metadata,
+- workspace path,
+- selected chat platform,
+- logical channel bindings,
+- agent-role mapping,
+- commands,
+- rules.
 
-This allows one platform instance to manage multiple repositories and multiple chat workspaces cleanly.
-
-## Slack vs Discord strategy
-
-Slack and Discord are intentionally treated as separate transports with different operational concerns.
-
-### Slack
-
-The scaffold is designed to align with a Slack App approach using:
-
-- Socket Mode
-- bot token
-- app token
-- project-scoped allowlist or policy controls
-
-These are represented as project metadata and adapter concerns rather than assumptions in orchestration logic.
-
-### Discord
-
-Discord is handled as a distinct adapter with its own channel and threading behavior.
-
-The platform does not assume Slack and Discord have identical event, thread, or permission semantics.
-
-## Future dashboard support
-
-The FastAPI API is intentionally UI-agnostic so a future web dashboard can consume:
-
-- project list
-- task list
-- decision history
-- approval queue
-- conversation history
-- agent execution status
-
-without moving business logic out of chat handlers later.
-
-## MVP scope in this scaffold
-
-Phase 1 now provides:
-
-- typed domain models,
-- configuration loading,
-- storage interfaces,
-- file-based storage implementation,
-- rules and execution extension points,
-- Slack and Discord adapter skeletons,
-- agent adapter skeletons,
-- FastAPI API skeleton,
-- sample project configs,
-- Docker-first local startup files.
-
-Phase 2 can now add real representative workflow, internal council debate, approvals, and execution orchestration on top of stable interfaces.
+This allows one platform instance to coordinate multiple projects without hardcoded assumptions.
