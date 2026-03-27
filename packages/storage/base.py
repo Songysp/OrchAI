@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from packages.domain.models import ApprovalRequest, ConversationThread, Decision, Project, Task
+from packages.domain.models import Approval, Decision, Project, Task
 
 
 class ProjectStore(ABC):
@@ -21,11 +21,11 @@ class ProjectStore(ABC):
 
 class TaskStore(ABC):
     @abstractmethod
-    def list_tasks(self, project_id: str | None = None) -> list[Task]:
+    def list_tasks(self, project_id: str) -> list[Task]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_task(self, task_id: str) -> Task | None:
+    def get_task(self, project_id: str, task_id: str) -> Task | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -33,19 +33,13 @@ class TaskStore(ABC):
         raise NotImplementedError
 
 
-class ConversationStore(ABC):
-    @abstractmethod
-    def list_conversations(self, project_id: str | None = None) -> list[ConversationThread]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def upsert_conversation(self, conversation: ConversationThread) -> ConversationThread:
-        raise NotImplementedError
-
-
 class DecisionStore(ABC):
     @abstractmethod
-    def list_decisions(self, project_id: str | None = None) -> list[Decision]:
+    def list_decisions(self, project_id: str, task_id: str | None = None) -> list[Decision]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_decision(self, project_id: str, decision_id: str) -> Decision | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -55,13 +49,13 @@ class DecisionStore(ABC):
 
 class ApprovalStore(ABC):
     @abstractmethod
-    def list_approvals(self, project_id: str | None = None) -> list[ApprovalRequest]:
+    def list_approvals(self, project_id: str, task_id: str | None = None) -> list[Approval]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_approval(self, approval_id: str) -> ApprovalRequest | None:
+    def get_approval(self, project_id: str, approval_id: str) -> Approval | None:
         raise NotImplementedError
 
     @abstractmethod
-    def upsert_approval(self, approval: ApprovalRequest) -> ApprovalRequest:
+    def upsert_approval(self, approval: Approval) -> Approval:
         raise NotImplementedError

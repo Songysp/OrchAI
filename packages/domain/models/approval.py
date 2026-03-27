@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import Field
 
-from packages.domain.models.common import ApprovalStatus, AuditRecord, new_id
+from packages.domain.models.common import ApprovalStatus, PlatformBaseModel, new_id, utc_now
 
 
-class ApprovalRequest(AuditRecord):
+class Approval(PlatformBaseModel):
     approval_id: str = Field(default_factory=new_id)
+    task_id: str
     project_id: str
-    task_id: str | None = None
-    requested_by: str
-    reason: str
     status: ApprovalStatus = ApprovalStatus.PENDING
-    context: dict[str, Any] = Field(default_factory=dict)
-    resolution_note: str | None = None
+    approved_by: str | None = None
+    comment: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)

@@ -41,6 +41,15 @@ class TaskStatus(StringEnum):
     CANCELED = "canceled"
 
 
+class TaskStage(StringEnum):
+    INTAKE = "intake"
+    PLANNING = "planning"
+    IMPLEMENTATION = "implementation"
+    REVIEW = "review"
+    TESTING = "testing"
+    DELIVERY = "delivery"
+
+
 class ApprovalStatus(StringEnum):
     PENDING = "pending"
     APPROVED = "approved"

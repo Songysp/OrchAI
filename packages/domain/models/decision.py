@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import Field
 
-from packages.domain.models.common import AuditRecord, new_id
+from packages.domain.models.common import PlatformBaseModel, new_id, utc_now
 
 
-class Decision(AuditRecord):
+class Decision(PlatformBaseModel):
     decision_id: str = Field(default_factory=new_id)
+    task_id: str
     project_id: str
-    task_id: str | None = None
-    title: str
     summary: str
-    rationale: str
-    made_by: str
-    approved: bool = False
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    chosen_option: str
+    created_at: datetime = Field(default_factory=utc_now)
