@@ -1,0 +1,20 @@
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+
+    steps:
+      - name: Announce staging deployment target
+        run: |
+          echo "Staging deployment placeholder"
+          echo "Use this workflow after setting your staging platform secrets and commands."
+          echo "Recommended flow: pull latest GHCR image, deploy, then hit /health."

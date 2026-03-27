@@ -1,0 +1,17 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Announce production deployment target
+        run: |
+          echo "Production deployment placeholder"
+          echo "Protect this environment with required reviewers before enabling real deployment."
+          echo "Recommended flow: promote a tested image tag, deploy, then verify /health."
