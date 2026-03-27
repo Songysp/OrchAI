@@ -74,21 +74,19 @@ async def receive_discord_event(
         raise HTTPException(status_code=400, detail="Project is not configured for Discord")
 
     public_key = os.getenv("DISCORD_PUBLIC_KEY")
-    if not public_key:
-        raise HTTPException(status_code=503, detail="Discord public key is not configured")
-
     raw_body = await request.body()
-    try:
-        is_verified = _verify_discord_signature(
-            body=raw_body,
-            timestamp=request.headers.get("X-Signature-Timestamp"),
-            signature=request.headers.get("X-Signature-Ed25519"),
-            public_key=public_key,
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    if not is_verified:
-        raise HTTPException(status_code=401, detail="Invalid Discord signature")
+    if public_key:
+        try:
+            is_verified = _verify_discord_signature(
+                body=raw_body,
+                timestamp=request.headers.get("X-Signature-Timestamp"),
+                signature=request.headers.get("X-Signature-Ed25519"),
+                public_key=public_key,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if not is_verified:
+            raise HTTPException(status_code=401, detail="Invalid Discord signature")
 
     try:
         payload = json.loads(raw_body)
