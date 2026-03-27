@@ -32,6 +32,40 @@ class TaskStatusResponse(BaseModel):
     summary: str | None = None
 
 
+class TaskListItemResponse(BaseModel):
+    task_id: str
+    project_id: str
+    title: str
+    status: str
+    stage: str
+    created_at: datetime
+    updated_at: datetime
+    summary: str | None = None
+
+
+class TaskListResponse(BaseModel):
+    items: list[TaskListItemResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class DecisionResponse(BaseModel):
+    decision_id: str
+    task_id: str
+    project_id: str
+    summary: str
+    chosen_option: str
+    created_at: datetime
+
+
+class DecisionListResponse(BaseModel):
+    items: list[DecisionResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class ProjectSummaryResponse(BaseModel):
     project_id: str
     name: str | None = None
@@ -44,6 +78,9 @@ class ProjectDetailResponse(ProjectSummaryResponse):
     description: str | None = None
     workspace_path: str
     channel_bindings: dict[str, str]
+    runtime_enabled: bool
+    runtime_started: bool
+    runtime_mode: str
 
 
 class ApprovalActionRequest(BaseModel):

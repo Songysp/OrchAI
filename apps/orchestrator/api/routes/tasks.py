@@ -1,12 +1,53 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from apps.orchestrator.api.deps import get_orchestrator_service
-from apps.orchestrator.api.models import CreateTaskRequest, TaskRunResponse, TaskStatusResponse
+from apps.orchestrator.api.models import (
+    CreateTaskRequest,
+    TaskListItemResponse,
+    TaskListResponse,
+    TaskRunResponse,
+    TaskStatusResponse,
+)
 from apps.orchestrator.services.orchestrator_service import OrchestratorService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+@router.get("", response_model=TaskListResponse)
+def list_tasks(
+    project_id: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    service: OrchestratorService = Depends(get_orchestrator_service),
+) -> TaskListResponse:
+    tasks = sorted(
+        service.list_tasks(project_id),
+        key=lambda item: item.created_at,
+        reverse=True,
+    )
+    paged = tasks[offset : offset + limit]
+    return TaskListResponse(
+        items=[
+            TaskListItemResponse(
+                task_id=item.task_id,
+                project_id=item.project_id,
+                title=item.title,
+                status=item.status.value,
+                stage=item.stage.value,
+                created_at=item.created_at,
+                updated_at=item.updated_at,
+                summary=item.metadata.get("status_summary")
+                if isinstance(item.metadata.get("status_summary"), str)
+                else None,
+            )
+            for item in paged
+        ],
+        total=len(tasks),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("", response_model=TaskRunResponse)

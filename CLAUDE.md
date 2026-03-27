@@ -135,6 +135,25 @@ Codex may also use gstack skills during implementation when appropriate.
 
 ---
 
+## 7b. Subagent Roles (`.agent/`)
+
+Project-level agent definitions live in `.agent/`. Both Claude and Codex must invoke these at the appropriate stages.
+
+| Agent | File | When to invoke |
+|-------|------|---------------|
+| **Explorer** | `.agent/explorer.md` | Before starting a task — when scope or affected files are unclear. Read the spec, then ask Explorer to map relevant code. |
+| **Reviewer** | `.agent/reviewer.md` | After every implementation — before marking a task DONE. Pass: task description + changed files. |
+| **Tester** | `.agent/tester.md` | After Reviewer passes — run Tester to write missing tests and verify nothing regressed. |
+
+### Invocation Rules
+
+- **Codex must invoke Reviewer** after every implementation task, before reporting completion to Claude.
+- **Codex may invoke Explorer** at the start of a task when it needs to locate relevant files or trace a data flow.
+- **Claude invokes Tester** after Reviewer passes, or delegates to Codex when test writing is within scope.
+- Agents in `.agent/` are role specifications — read the file, follow its instructions, and return the output in the format it specifies.
+
+---
+
 ## 8. Continuation Rule
 
 - After completing a task, immediately proceed to the next eligible task following TASKS.md priority rules.

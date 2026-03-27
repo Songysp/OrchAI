@@ -20,6 +20,16 @@ def test_projects_seeded_from_config() -> None:
     assert "sample-discord-project" in project_ids
 
 
+def test_project_detail_includes_runtime_status() -> None:
+    response = client.get("/api/projects/sample-slack-project")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["project_id"] == "sample-slack-project"
+    assert isinstance(payload["runtime_enabled"], bool)
+    assert isinstance(payload["runtime_started"], bool)
+    assert payload["runtime_mode"] in {"running", "stopped", "disabled", "unavailable"}
+
+
 def test_create_task_runs_orchestration_and_returns_summary() -> None:
     response = client.post(
         "/api/tasks",
@@ -41,6 +51,69 @@ def test_create_task_runs_orchestration_and_returns_summary() -> None:
     status_payload = status_response.json()
     assert status_payload["task_id"] == payload["task_id"]
     assert status_payload["project_id"] == "sample-slack-project"
+
+
+def test_tasks_endpoint_returns_paginated_items() -> None:
+    create_response = client.post(
+        "/api/tasks",
+        json={
+            "project_id": "sample-slack-project",
+            "user_input": "List API pagination smoke check",
+        },
+    )
+    assert create_response.status_code == 200
+
+    response = client.get("/api/tasks", params={"project_id": "sample-slack-project", "limit": 5, "offset": 0})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["limit"] == 5
+    assert payload["offset"] == 0
+    assert payload["total"] >= 1
+    assert len(payload["items"]) >= 1
+
+    item = payload["items"][0]
+    assert item["project_id"] == "sample-slack-project"
+    assert "task_id" in item
+    assert "status" in item
+    assert "stage" in item
+    assert "created_at" in item
+    assert "updated_at" in item
+
+
+def test_decisions_endpoint_returns_paginated_items() -> None:
+    create_response = client.post(
+        "/api/tasks",
+        json={
+            "project_id": "sample-slack-project",
+            "user_input": "Decision list API smoke check",
+        },
+    )
+    assert create_response.status_code == 200
+    task_payload = create_response.json()
+
+    response = client.get(
+        "/api/decisions",
+        params={
+            "project_id": "sample-slack-project",
+            "task_id": task_payload["task_id"],
+            "limit": 5,
+            "offset": 0,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["limit"] == 5
+    assert payload["offset"] == 0
+    assert payload["total"] >= 1
+    assert len(payload["items"]) >= 1
+
+    item = payload["items"][0]
+    assert item["project_id"] == "sample-slack-project"
+    assert item["task_id"] == task_payload["task_id"]
+    assert "decision_id" in item
+    assert "summary" in item
+    assert "chosen_option" in item
+    assert "created_at" in item
 
 
 def test_approval_api_can_approve_and_resume_task() -> None:
@@ -71,3 +144,31 @@ def test_approval_api_can_approve_and_resume_task() -> None:
     assert approval_payload["resumed"] is True
     assert approval_payload["task_stage"] == "completed"
     assert approval_payload["task_status"] == "completed"
+
+
+def test_approvals_list_schema_review_contract() -> None:
+    create_response = client.post(
+        "/api/tasks",
+        json={
+            "project_id": "sample-slack-project",
+            "user_input": "Review auth and schema changes for approval queue list",
+        },
+    )
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["approval_required"] is True
+
+    list_response = client.get("/api/approvals", params={"project_id": "sample-slack-project"})
+    assert list_response.status_code == 200
+    approvals = list_response.json()
+    assert isinstance(approvals, list)
+    assert len(approvals) >= 1
+
+    item = approvals[0]
+    assert "approval_id" in item
+    assert "task_id" in item
+    assert "project_id" in item
+    assert "status" in item
+    assert "approved_by" in item
+    assert "comment" in item
+    assert "created_at" in item
