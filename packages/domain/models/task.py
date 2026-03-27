@@ -13,4 +13,4 @@ class Task(AuditRecord):
     stage: TaskStage = TaskStage.INTAKE
     description: str | None = None
     created_by: str | None = None
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)

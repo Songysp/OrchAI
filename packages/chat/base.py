@@ -5,22 +5,31 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from packages.domain.models import ConversationDomain, MessageEnvelope, Project
+from packages.domain.models import ConversationDomain, Project
 
 
-class IncomingChatEvent(BaseModel):
+class ChatMessage(BaseModel):
+    """Platform-neutral message payload.
+
+    A logical channel identifies the intent domain in the platform
+    (`ai-council`, `ai-ops`, `user-control`), while adapters resolve the
+    actual Slack channel ID or Discord channel/thread target.
+    """
+
     project_id: str
-    domain: ConversationDomain
-    sender_id: str
+    logical_channel: ConversationDomain
     content: str
-    envelope: MessageEnvelope
+    thread_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class OutgoingChatMessage(BaseModel):
-    project_id: str
-    domain: ConversationDomain
-    content: str
+class ChatDelivery(BaseModel):
+    """Platform-neutral delivery result returned by adapters."""
+
+    platform: str
+    logical_channel: ConversationDomain
+    physical_channel_id: str
+    message_id: str | None = None
     thread_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -33,13 +42,58 @@ class ChatAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def send_message(self, project: Project, message: OutgoingChatMessage) -> MessageEnvelope:
+    async def send_message(self, project: Project, message: ChatMessage) -> ChatDelivery:
         raise NotImplementedError
 
     @abstractmethod
-    async def post_log(self, project: Project, domain: ConversationDomain, content: str) -> MessageEnvelope:
+    async def send_thread_reply(
+        self,
+        project: Project,
+        message: ChatMessage,
+        parent_message_id: str,
+    ) -> ChatDelivery:
         raise NotImplementedError
 
     @abstractmethod
-    async def post_approval_request(self, project: Project, content: str) -> MessageEnvelope:
+    async def post_approval_request(
+        self,
+        project: Project,
+        content: str,
+        thread_id: str | None = None,
+    ) -> ChatDelivery:
         raise NotImplementedError
+
+    @abstractmethod
+    async def post_ops_log(
+        self,
+        project: Project,
+        content: str,
+        thread_id: str | None = None,
+    ) -> ChatDelivery:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def post_council_message(
+        self,
+        project: Project,
+        content: str,
+        thread_id: str | None = None,
+    ) -> ChatDelivery:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def post_user_message(
+        self,
+        project: Project,
+        content: str,
+        thread_id: str | None = None,
+    ) -> ChatDelivery:
+        raise NotImplementedError
+
+    def _binding_for(self, project: Project, logical_channel: ConversationDomain):
+        binding = project.channel_bindings.get(logical_channel.value)
+        if binding is None:
+            raise ValueError(
+                f"Project '{project.project_id}' does not define a binding for logical channel '{logical_channel.value}'."
+            )
+        return binding
