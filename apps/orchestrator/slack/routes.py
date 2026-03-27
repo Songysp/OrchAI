@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
+import json
+import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from apps.orchestrator.api.deps import get_chat_ingress_service, get_orchestrator_service
 from apps.orchestrator.services.chat_ingress_service import ChatIngressService
 from apps.orchestrator.services.orchestrator_service import OrchestratorService
-from apps.orchestrator.slack.service import SlackEventTranslator
+from apps.orchestrator.slack.service import SlackEventTranslator, SlackSignatureVerifier
 
 router = APIRouter(prefix="/integrations/slack", tags=["slack"])
 
@@ -28,7 +29,7 @@ class SlackIngressResponse(BaseModel):
 @router.post("/{project_id}/events", response_model=SlackIngressResponse)
 async def receive_slack_event(
     project_id: str,
-    payload: dict[str, Any],
+    request: Request,
     ingress: ChatIngressService = Depends(get_chat_ingress_service),
     orchestrator: OrchestratorService = Depends(get_orchestrator_service),
 ) -> SlackIngressResponse:
@@ -37,6 +38,26 @@ async def receive_slack_event(
         raise HTTPException(status_code=404, detail="Project not found")
     if project.chat_platform.lower() != "slack":
         raise HTTPException(status_code=400, detail="Project is not configured for Slack")
+
+    signing_secret = os.getenv("SLACK_SIGNING_SECRET")
+    if not signing_secret:
+        raise HTTPException(status_code=503, detail="Slack signing secret is not configured")
+
+    raw_body = await request.body()
+    verifier = SlackSignatureVerifier(signing_secret=signing_secret)
+    if not verifier.verify(
+        body=raw_body,
+        timestamp=request.headers.get("X-Slack-Request-Timestamp"),
+        signature=request.headers.get("X-Slack-Signature"),
+    ):
+        raise HTTPException(status_code=401, detail="Invalid Slack signature")
+
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Slack payload must be a JSON object")
 
     if payload.get("type") == "url_verification":
         challenge = payload.get("challenge")

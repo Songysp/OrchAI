@@ -1,9 +1,43 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import time
 from typing import Any
 
 from packages.chat.base import InboundChatEvent
 from packages.domain.models import ConversationDomain, Project
+
+
+class SlackSignatureVerifier:
+    """Validate Slack request signatures for inbound HTTP events."""
+
+    def __init__(self, signing_secret: str, max_age_seconds: int = 300) -> None:
+        self._signing_secret = signing_secret.encode("utf-8")
+        self._max_age_seconds = max_age_seconds
+
+    def verify(self, body: bytes, timestamp: str | None, signature: str | None) -> bool:
+        if not timestamp or not signature:
+            return False
+        if not signature.startswith("v0="):
+            return False
+
+        try:
+            request_ts = int(timestamp)
+        except ValueError:
+            return False
+
+        now = int(time.time())
+        if abs(now - request_ts) > self._max_age_seconds:
+            return False
+
+        base_string = f"v0:{timestamp}:".encode("utf-8") + body
+        expected = "v0=" + hmac.new(
+            self._signing_secret,
+            base_string,
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
 
 
 class SlackEventTranslator:

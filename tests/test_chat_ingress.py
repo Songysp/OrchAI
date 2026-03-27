@@ -1,14 +1,51 @@
+import hashlib
+import hmac
+import json
+import time
+
 from fastapi.testclient import TestClient
 
 from apps.orchestrator.main import create_app
 
+SLACK_SIGNING_SECRET = "test-slack-signing-secret"
+
+
+def _post_signed_slack_event(
+    client: TestClient,
+    project_id: str,
+    payload: dict[str, object],
+    *,
+    signing_secret: str = SLACK_SIGNING_SECRET,
+) -> object:
+    body = json.dumps(payload, separators=(",", ":"))
+    timestamp = str(int(time.time()))
+    base = f"v0:{timestamp}:{body}".encode("utf-8")
+    signature = "v0=" + hmac.new(
+        signing_secret.encode("utf-8"),
+        base,
+        hashlib.sha256,
+    ).hexdigest()
+    return client.post(
+        f"/api/integrations/slack/{project_id}/events",
+        data=body.encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Slack-Request-Timestamp": timestamp,
+            "X-Slack-Signature": signature,
+        },
+    )
+
 
 def test_slack_user_control_event_creates_and_runs_task() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
     client = TestClient(create_app())
 
-    response = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    response = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -50,11 +87,15 @@ def test_discord_user_control_event_creates_and_runs_task() -> None:
 
 
 def test_slack_non_user_control_channel_is_ignored() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
     client = TestClient(create_app())
 
-    response = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    response = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -74,11 +115,15 @@ def test_slack_non_user_control_channel_is_ignored() -> None:
 
 
 def test_slack_approve_command_resumes_waiting_task() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
     client = TestClient(create_app())
 
-    created = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    created = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -100,9 +145,10 @@ def test_slack_approve_command_resumes_waiting_task() -> None:
         if item["task_id"] == created_task_id and item["status"] == "pending"
     )
 
-    approved = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    approved = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -168,11 +214,15 @@ def test_discord_reject_command_fails_waiting_task() -> None:
 
 
 def test_slack_help_command_returns_supported_commands() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
     client = TestClient(create_app())
 
-    response = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    response = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -227,11 +277,15 @@ def test_discord_status_command_returns_task_status() -> None:
 
 
 def test_slack_approvals_command_lists_pending_items() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
     client = TestClient(create_app())
 
-    created = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    created = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -244,9 +298,10 @@ def test_slack_approvals_command_lists_pending_items() -> None:
     )
     assert created.status_code == 200
 
-    response = client.post(
-        "/api/integrations/slack/sample-slack-project/events",
-        json={
+    response = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
             "type": "event_callback",
             "event": {
                 "type": "message",
@@ -263,3 +318,29 @@ def test_slack_approvals_command_lists_pending_items() -> None:
     assert payload["accepted"] is True
     assert payload["action"] == "approvals_listed"
     assert "Pending approvals:" in payload["message"]
+
+
+def test_slack_event_rejects_invalid_signature() -> None:
+    import os
+
+    os.environ["SLACK_SIGNING_SECRET"] = SLACK_SIGNING_SECRET
+    client = TestClient(create_app())
+
+    response = _post_signed_slack_event(
+        client,
+        "sample-slack-project",
+        {
+            "type": "event_callback",
+            "event": {
+                "type": "message",
+                "channel": "C_USER_CONTROL",
+                "user": "U123",
+                "text": "invalid signature should be rejected",
+                "ts": "1710000000.000600",
+            },
+        },
+        signing_secret="wrong-secret",
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid Slack signature"
