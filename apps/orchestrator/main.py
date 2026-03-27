@@ -9,6 +9,8 @@ from apps.orchestrator.api.routes.approvals import router as approvals_router
 from apps.orchestrator.api.routes.health import router as health_router
 from apps.orchestrator.api.routes.projects import router as projects_router
 from apps.orchestrator.api.routes.tasks import router as tasks_router
+from apps.orchestrator.discord.routes import router as discord_router
+from apps.orchestrator.slack.routes import router as slack_router
 
 
 logging.basicConfig(
@@ -36,6 +38,8 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix="/api")
     app.include_router(tasks_router, prefix="/api")
     app.include_router(approvals_router, prefix="/api")
+    app.include_router(slack_router, prefix="/api")
+    app.include_router(discord_router, prefix="/api")
     return app
 
 

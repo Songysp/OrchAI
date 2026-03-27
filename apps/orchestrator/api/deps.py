@@ -4,6 +4,7 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
+from apps.orchestrator.services.chat_ingress_service import ChatIngressService
 from apps.orchestrator.services.orchestrator_service import OrchestratorService
 from packages.domain.services.registry import PlatformRegistry
 
@@ -19,3 +20,7 @@ def get_registry() -> PlatformRegistry:
 
 def get_orchestrator_service() -> OrchestratorService:
     return OrchestratorService(registry=get_registry())
+
+
+def get_chat_ingress_service() -> ChatIngressService:
+    return ChatIngressService(orchestrator=get_orchestrator_service())

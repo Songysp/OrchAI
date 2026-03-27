@@ -34,6 +34,25 @@ class ChatDelivery(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class InboundChatEvent(BaseModel):
+    """Platform-neutral inbound chat event.
+
+    Transport-specific HTTP or gateway payloads are normalized into this
+    shape before application services decide what orchestration action to take.
+    """
+
+    platform: str
+    project_id: str
+    logical_channel: ConversationDomain
+    physical_channel_id: str
+    sender_id: str
+    sender_name: str | None = None
+    content: str
+    message_id: str | None = None
+    thread_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class ChatAdapter(ABC):
     platform_name: str
 
