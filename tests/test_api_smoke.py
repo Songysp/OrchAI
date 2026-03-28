@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 
+from apps.orchestrator.api.deps import get_orchestrator_service
 from apps.orchestrator.main import app
+from packages.domain.models import ExecutionBackend
+from packages.execution import ExecutionRequest, ExecutionResult
 
 
 client = TestClient(app)
@@ -215,3 +218,71 @@ def test_conversations_endpoint_returns_history_items() -> None:
     assert "domain" in message
     assert "role" in message
     assert "content" in message
+
+
+def test_executions_and_artifacts_endpoints_return_logged_results() -> None:
+    create_response = client.post(
+        "/api/tasks",
+        json={
+            "project_id": "sample-slack-project",
+            "user_input": "Execution log API smoke check",
+        },
+    )
+    assert create_response.status_code == 200
+    task_payload = create_response.json()
+
+    service = get_orchestrator_service()
+    task = service.task_service.get_task(task_payload["task_id"])
+    project = service.get_project("sample-slack-project")
+    assert task is not None
+    assert project is not None
+
+    execution_run = service.record_execution_result(
+        request=ExecutionRequest(
+            project=project,
+            task=task,
+            command="pytest -q",
+            metadata={"trigger": "api-smoke"},
+        ),
+        result=ExecutionResult(
+            backend=ExecutionBackend(project.execution_backend or ExecutionBackend.CLI.value),
+            status="completed",
+            summary="Execution finished in smoke test.",
+            logs=["stdout smoke line", "stderr smoke line"],
+            metadata={"exit_code": 0},
+        ),
+    )
+
+    executions_response = client.get(
+        "/api/executions",
+        params={
+            "project_id": "sample-slack-project",
+            "task_id": task_payload["task_id"],
+            "limit": 10,
+            "offset": 0,
+        },
+    )
+    assert executions_response.status_code == 200
+    executions_payload = executions_response.json()
+    assert executions_payload["total"] >= 1
+    execution_item = executions_payload["items"][0]
+    assert execution_item["execution_id"] == execution_run.execution_id
+    assert execution_item["status"] == "completed"
+    assert execution_item["backend"] in {"cli", "github_actions"}
+    assert len(execution_item["artifact_ids"]) >= 1
+
+    artifacts_response = client.get(
+        f"/api/executions/{execution_run.execution_id}/artifacts",
+        params={
+            "project_id": "sample-slack-project",
+            "limit": 10,
+            "offset": 0,
+        },
+    )
+    assert artifacts_response.status_code == 200
+    artifacts_payload = artifacts_response.json()
+    assert artifacts_payload["total"] >= 1
+    artifact_item = artifacts_payload["items"][0]
+    assert artifact_item["execution_id"] == execution_run.execution_id
+    assert artifact_item["project_id"] == "sample-slack-project"
+    assert artifact_item["relative_path"].startswith("execution_artifacts/files/")

@@ -1,162 +1,36 @@
-# Architecture
+# OrchAI Architecture: The HiveMind CLI
 
-This repository is structured as a reusable platform, not a one-off app.
+## Overview
+OrchAI는 로컬 개발 환경 최적화된 **CLI 기반 에이전트 오케스트레이터**입니다. 이 시스템은 복잡한 인프라 없이 파이썬 런타임과 LLM CLI(Claude)만으로 작동하는 'Zero-Infrastructure'를 지향합니다.
 
-The system is designed to evolve into:
+---
 
-- a multi-project AI dev team platform,
-- interchangeable Slack and Discord interfaces,
-- a future web dashboard,
-- later database-backed persistence.
+## 핵심 계층 (Core Layers)
 
-## Repository structure
+### 1. 전면 인터페이스 (CLI Interface)
+- **`apps/cli/main.py`**: Typer를 사용하여 구현된 인터랙티브 REPL. 
+- 사용자의 입력을 받고, `Rich` 라이브러리를 통해 에이전트들의 토론 과정을 시각화합니다.
 
-```text
-apps/
-  orchestrator/
-    api/
-    discord/
-    slack/
-    workflows/
-    services/
+### 2. 오케스트레이션 코어 (HiveMind Engine)
+- **`OrchestratorService`**: 작업을 분석하고 에이전트들에게 배분합니다.
+- **Loop Strategy**: Planner -> Worker -> Reviewer 루프를 돌며, Reviewer의 피드백에 따라 최대 3회까지 재작업을 수행하는 '핑퐁(Ping-Pong)' 시스템을 가집니다.
 
-packages/
-  agents/
-  chat/
-  config/
-  domain/
-    models/
-    services/
-  execution/
-  github/
-  prompts/
-    roles/
-    system/
-  rules/
-  storage/
-    base.py
-    file_store/
+### 3. 하이브리드 어댑터 계층 (Hybrid Drivers)
+- **`BaseAgentAdapter`**: 모든 AI 에이전트의 공통 인터페이스.
+- **`CLIDriver`**: `subprocess`를 통해 로컬에 설치된 `claude` CLI 등을 실행 (비용 효율적).
+- **`APIDriver`**: 표준 REST API/SDK를 통해 통신 (고가용성).
 
-configs/
-data/
-docs/
-infra/
-workspaces/
-```
+### 4. 경량 저장소 (File-based Storage)
+- **State Management**: Redis 대신 프로젝트 내 JSON 파일로 상태를 관리합니다.
+- **Trace Logging**: 모든 에이전트 호출 이력은 SQLite 데이터베이스에 기록되어 나중에 복기가 가능합니다.
 
-## Layer responsibilities
+---
 
-### `apps/orchestrator`
+## 데이터 흐름 (Data Flow)
 
-Application assembly layer for the running service.
-
-- `api/`
-  - FastAPI-facing HTTP entrypoints
-  - should remain thin and delegate to reusable services
-- `discord/`
-  - Discord-specific application integration entrypoints
-- `slack/`
-  - Slack-specific application integration entrypoints
-- `workflows/`
-  - app-level workflow composition for representative and council flows
-- `services/`
-  - app-layer runtime assembly and dependency wiring
-
-This layer may know about FastAPI and runtime composition, but it should not own domain rules.
-
-### `packages/domain`
-
-Reusable platform domain.
-
-- `models/`
-  - project, task, approval, decision, and conversation models
-- `services/`
-  - orchestration and lifecycle services
-
-This layer must remain independent from Slack, Discord, and web concerns.
-
-### `packages/storage`
-
-Persistence abstraction layer.
-
-- `base.py`
-  - storage interfaces
-- `file_store/`
-  - file-backed MVP implementation
-
-Future Postgres or Redis backends should be added here without breaking callers.
-
-### `packages/chat`
-
-Transport adapter layer.
-
-- `base.py`
-  - generic chat adapter contracts
-- `slack_adapter.py`
-  - Slack transport adapter
-- `discord_adapter.py`
-  - Discord transport adapter
-
-Core orchestration should depend on these abstractions, not on Slack or Discord SDK details directly.
-
-#### Logical channels vs physical channels
-
-The platform should talk in terms of logical channels:
-
-- `ai-council`
-- `ai-ops`
-- `user-control`
-
-These logical domains are part of the platform contract and should be used by orchestration code.
-
-Each project configuration maps those logical channels to physical platform targets, for example:
-
-- a Slack channel ID,
-- a Discord channel ID,
-- a thread-capable destination with platform-specific metadata.
-
-That mapping belongs to project configuration plus chat adapters, not to domain services.
-
-### `packages/agents`
-
-Model-provider adapter layer.
-
-- `base.py`
-- `claude_adapter.py`
-- `codex_adapter.py`
-- `gemini_adapter.py`
-
-This keeps provider choice swappable per role.
-
-### `packages/prompts`
-
-Prompt asset organization.
-
-- `roles/`
-  - role-specific prompts such as representative, planner, builder, critic, tester
-- `system/`
-  - system-level platform prompts
-
-Prompt assets should remain reusable and free from project-specific hardcoding.
-
-## Design rules
-
-- keep project-specific behavior config-driven
-- keep chat-platform behavior adapter-driven
-- keep domain logic independent from route handlers
-- keep orchestration logic reusable across chat and future web interfaces
-- keep platform code separate from project workspaces
-
-## Multi-project model
-
-Each project is expected to define its own configuration for:
-
-- repository metadata,
-- workspace path,
-- selected chat platform,
-- logical channel bindings,
-- agent-role mapping,
-- commands,
-- rules.
-
-This allows one platform instance to coordinate multiple projects without hardcoded assumptions.
+1. **User input** -> `orchai` CLI
+2. **Planner Agent** -> 작업 분해 (subtasks)
+3. **Worker Agent** -> 실제 구현 (Implementation)
+4. **Reviewer Agent** -> 검증 (Verification)
+5. **If Reject** -> Worker에게 피드백과 함께 재전달 (Loop)
+6. **Final Result** -> 사용자 터미널 출력 및 파일 저장

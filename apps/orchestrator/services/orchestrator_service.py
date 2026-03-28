@@ -11,12 +11,15 @@ from packages.domain.models import (
     ConversationThread,
     ConversationDomain,
     Decision,
+    ExecutionArtifact,
+    ExecutionRun,
     MessageEnvelope,
     Task,
     TaskStage,
     TaskStatus,
 )
-from packages.domain.services import DecisionService, TaskService, TaskStatusView
+from packages.domain.services import DecisionService, ExecutionLogService, TaskService, TaskStatusView
+from packages.execution import ExecutionRequest, ExecutionResult
 from packages.domain.services.registry import PlatformRegistry
 
 
@@ -44,6 +47,10 @@ class OrchestratorService:
         self.registry = registry
         self.task_service = TaskService(registry.project_store, registry.task_store)
         self.decision_service = DecisionService(registry.decision_store)
+        self.execution_log_service = ExecutionLogService(
+            run_store=registry.execution_run_store,
+            artifact_store=registry.execution_artifact_store,
+        )
         self.runtime = ProjectRuntime(registry)
         self.representative_workflow = RepresentativeWorkflow(
             runtime=self.runtime,
@@ -341,6 +348,42 @@ class OrchestratorService:
             )
 
         return sorted(conversations, key=lambda item: item.created_at, reverse=True)
+
+    def record_execution_result(self, request: ExecutionRequest, result: ExecutionResult) -> ExecutionRun:
+        return self.execution_log_service.record_result(request, result)
+
+    def list_execution_runs(self, project_id: str | None = None, task_id: str | None = None) -> list[ExecutionRun]:
+        if project_id is not None:
+            return self.execution_log_service.list_runs(project_id, task_id=task_id)
+
+        runs: list[ExecutionRun] = []
+        for project in self.registry.project_store.list_projects():
+            runs.extend(self.execution_log_service.list_runs(project.project_id, task_id=task_id))
+        return runs
+
+    def list_execution_artifacts(
+        self,
+        project_id: str | None = None,
+        execution_id: str | None = None,
+        task_id: str | None = None,
+    ) -> list[ExecutionArtifact]:
+        if project_id is not None:
+            return self.execution_log_service.list_artifacts(
+                project_id,
+                execution_id=execution_id,
+                task_id=task_id,
+            )
+
+        artifacts: list[ExecutionArtifact] = []
+        for project in self.registry.project_store.list_projects():
+            artifacts.extend(
+                self.execution_log_service.list_artifacts(
+                    project.project_id,
+                    execution_id=execution_id,
+                    task_id=task_id,
+                )
+            )
+        return artifacts
 
     def _get_approval_by_id(self, approval_id: str) -> Approval | None:
         for project in self.registry.project_store.list_projects():

@@ -10,6 +10,7 @@ Reusable AI software team orchestration platform with:
 - FastAPI endpoints ready for future dashboard use.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the platform design.
+See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current handoff summary.
 
 ## Development
 

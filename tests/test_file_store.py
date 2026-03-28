@@ -1,9 +1,22 @@
 from pathlib import Path
 
-from packages.domain.models import Approval, ApprovalStatus, Decision, Project, Task, TaskStage, TaskStatus
+from packages.domain.models import (
+    Approval,
+    ApprovalStatus,
+    Decision,
+    ExecutionArtifact,
+    ExecutionBackend,
+    ExecutionRun,
+    Project,
+    Task,
+    TaskStage,
+    TaskStatus,
+)
 from packages.storage.file_store import (
     FileApprovalStore,
     FileDecisionStore,
+    FileExecutionArtifactStore,
+    FileExecutionRunStore,
     FileProjectStore,
     FileTaskStore,
 )
@@ -59,3 +72,37 @@ def test_file_stores_use_project_scoped_paths(tmp_path: Path) -> None:
     assert (tmp_path / "projects" / project.project_id / "tasks" / f"{task.task_id}.json").exists()
     assert (tmp_path / "projects" / project.project_id / "decisions" / f"{decision.decision_id}.json").exists()
     assert (tmp_path / "projects" / project.project_id / "approvals" / f"{approval.approval_id}.json").exists()
+
+
+def test_execution_run_and_artifact_stores_persist_content(tmp_path: Path) -> None:
+    run_store = FileExecutionRunStore(tmp_path)
+    artifact_store = FileExecutionArtifactStore(tmp_path)
+
+    run = ExecutionRun(
+        execution_id="run-001",
+        project_id="project-alpha",
+        task_id="task-001",
+        backend=ExecutionBackend.CLI,
+        command="pytest",
+        status="completed",
+        summary="Execution completed",
+        logs=["stdout line", "stderr line"],
+    )
+    persisted_run = run_store.upsert_execution_run(run)
+    assert run_store.get_execution_run("project-alpha", "run-001") == persisted_run
+
+    artifact = ExecutionArtifact(
+        artifact_id="artifact-001",
+        execution_id=run.execution_id,
+        project_id=run.project_id,
+        task_id=run.task_id,
+        name="stdout.txt",
+        relative_path="",
+        size_bytes=0,
+        content_type="text/plain",
+    )
+    persisted_artifact = artifact_store.create_execution_artifact(artifact, b"hello artifact")
+
+    assert artifact_store.get_execution_artifact("project-alpha", "artifact-001") == persisted_artifact
+    assert artifact_store.read_execution_artifact("project-alpha", "artifact-001") == b"hello artifact"
+    assert persisted_artifact.relative_path.startswith("execution_artifacts/files/run-001/")

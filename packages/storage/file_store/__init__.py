@@ -3,6 +3,8 @@
 from packages.storage.file_store.stores import (
     FileApprovalStore,
     FileDecisionStore,
+    FileExecutionArtifactStore,
+    FileExecutionRunStore,
     FileProjectStore,
     FileTaskStore,
 )
@@ -10,6 +12,8 @@ from packages.storage.file_store.stores import (
 __all__ = [
     "FileApprovalStore",
     "FileDecisionStore",
+    "FileExecutionArtifactStore",
+    "FileExecutionRunStore",
     "FileProjectStore",
     "FileTaskStore",
 ]

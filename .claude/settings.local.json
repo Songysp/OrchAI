@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__codex-cli__codex",
+      "WebSearch",
+      "WebFetch(domain:m.blog.naver.com)",
+      "WebFetch(domain:bongman.tistory.com)",
+      "WebFetch(domain:twofootdog.tistory.com)",
+      "Bash(git clone:*)",
+      "Read(//c/Users/song/.claude/skills/gstack/**)",
+      "Bash(command -v bun)",
+      "Bash(bun --version)",
+      "Bash(./setup)"
+    ]
+  }
+}

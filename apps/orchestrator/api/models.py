@@ -95,6 +95,48 @@ class ConversationListResponse(BaseModel):
     offset: int
 
 
+class ExecutionRunResponse(BaseModel):
+    execution_id: str
+    project_id: str
+    task_id: str
+    backend: str
+    command: str
+    status: str
+    summary: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    logs: list[str]
+    artifact_ids: list[str]
+    metadata: dict[str, object]
+
+
+class ExecutionRunListResponse(BaseModel):
+    items: list[ExecutionRunResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ExecutionArtifactResponse(BaseModel):
+    artifact_id: str
+    execution_id: str
+    project_id: str
+    task_id: str
+    name: str
+    relative_path: str
+    size_bytes: int
+    content_type: str
+    created_at: datetime
+    metadata: dict[str, object]
+
+
+class ExecutionArtifactListResponse(BaseModel):
+    items: list[ExecutionArtifactResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class ProjectSummaryResponse(BaseModel):
     project_id: str
     name: str | None = None

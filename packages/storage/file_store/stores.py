@@ -7,8 +7,15 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
-from packages.domain.models import Approval, Decision, Project, Task
-from packages.storage.base import ApprovalStore, DecisionStore, ProjectStore, TaskStore
+from packages.domain.models import Approval, Decision, ExecutionArtifact, ExecutionRun, Project, Task
+from packages.storage.base import (
+    ApprovalStore,
+    DecisionStore,
+    ExecutionArtifactStore,
+    ExecutionRunStore,
+    ProjectStore,
+    TaskStore,
+)
 
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -135,3 +142,96 @@ class FileApprovalStore(FileStoreBase, ApprovalStore):
             approval.model_dump(mode="json"),
         )
         return approval
+
+
+class FileExecutionRunStore(FileStoreBase, ExecutionRunStore):
+    def _execution_runs_dir(self, project_id: str) -> Path:
+        path = self._project_dir(project_id) / "execution_runs"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def list_execution_runs(self, project_id: str, task_id: str | None = None) -> list[ExecutionRun]:
+        runs = self._read_models(self._execution_runs_dir(project_id), ExecutionRun)
+        if task_id is None:
+            return runs
+        return [run for run in runs if run.task_id == task_id]
+
+    def get_execution_run(self, project_id: str, execution_id: str) -> ExecutionRun | None:
+        return self._read_model(self._execution_runs_dir(project_id) / f"{execution_id}.json", ExecutionRun)
+
+    def upsert_execution_run(self, run: ExecutionRun) -> ExecutionRun:
+        self._write_json_atomic(
+            self._execution_runs_dir(run.project_id) / f"{run.execution_id}.json",
+            run.model_dump(mode="json"),
+        )
+        return run
+
+
+class FileExecutionArtifactStore(FileStoreBase, ExecutionArtifactStore):
+    def _artifacts_dir(self, project_id: str) -> Path:
+        path = self._project_dir(project_id) / "execution_artifacts"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _artifact_index_dir(self, project_id: str) -> Path:
+        path = self._artifacts_dir(project_id) / "index"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _artifact_files_dir(self, project_id: str) -> Path:
+        path = self._artifacts_dir(project_id) / "files"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _safe_filename(self, value: str) -> str:
+        return "".join(char if char.isalnum() or char in {"-", "_", "."} else "-" for char in value)[:120]
+
+    def _artifact_content_path(self, artifact: ExecutionArtifact) -> Path:
+        return self._project_dir(artifact.project_id) / artifact.relative_path
+
+    def list_execution_artifacts(
+        self,
+        project_id: str,
+        execution_id: str | None = None,
+        task_id: str | None = None,
+    ) -> list[ExecutionArtifact]:
+        artifacts = self._read_models(self._artifact_index_dir(project_id), ExecutionArtifact)
+        if execution_id is not None:
+            artifacts = [item for item in artifacts if item.execution_id == execution_id]
+        if task_id is not None:
+            artifacts = [item for item in artifacts if item.task_id == task_id]
+        return artifacts
+
+    def get_execution_artifact(self, project_id: str, artifact_id: str) -> ExecutionArtifact | None:
+        return self._read_model(self._artifact_index_dir(project_id) / f"{artifact_id}.json", ExecutionArtifact)
+
+    def create_execution_artifact(self, artifact: ExecutionArtifact, content: bytes) -> ExecutionArtifact:
+        safe_name = self._safe_filename(artifact.name)
+        content_path = (
+            self._artifact_files_dir(artifact.project_id)
+            / artifact.execution_id
+            / f"{artifact.artifact_id}-{safe_name}"
+        )
+        content_path.parent.mkdir(parents=True, exist_ok=True)
+        content_path.write_bytes(content)
+        relative_path = content_path.relative_to(self._project_dir(artifact.project_id)).as_posix()
+        updated = artifact.model_copy(
+            update={
+                "relative_path": relative_path,
+                "size_bytes": len(content),
+            }
+        )
+        self._write_json_atomic(
+            self._artifact_index_dir(updated.project_id) / f"{updated.artifact_id}.json",
+            updated.model_dump(mode="json"),
+        )
+        return updated
+
+    def read_execution_artifact(self, project_id: str, artifact_id: str) -> bytes | None:
+        artifact = self.get_execution_artifact(project_id, artifact_id)
+        if artifact is None:
+            return None
+        content_path = self._artifact_content_path(artifact)
+        if not content_path.exists():
+            return None
+        return content_path.read_bytes()

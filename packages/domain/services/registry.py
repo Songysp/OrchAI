@@ -12,10 +12,19 @@ from packages.chat.slack_adapter import SlackAdapter
 from packages.config.loader import ConfigLoader
 from packages.config.models import LoadedConfig
 from packages.rules import SimpleRulesEngine
-from packages.storage.base import ApprovalStore, DecisionStore, ProjectStore, TaskStore
+from packages.storage.base import (
+    ApprovalStore,
+    DecisionStore,
+    ExecutionArtifactStore,
+    ExecutionRunStore,
+    ProjectStore,
+    TaskStore,
+)
 from packages.storage.file_store import (
     FileApprovalStore,
     FileDecisionStore,
+    FileExecutionArtifactStore,
+    FileExecutionRunStore,
     FileProjectStore,
     FileTaskStore,
 )
@@ -31,6 +40,8 @@ class PlatformRegistry:
         self.task_store: TaskStore = FileTaskStore(data_path)
         self.decision_store: DecisionStore = FileDecisionStore(data_path)
         self.approval_store: ApprovalStore = FileApprovalStore(data_path)
+        self.execution_run_store: ExecutionRunStore = FileExecutionRunStore(data_path)
+        self.execution_artifact_store: ExecutionArtifactStore = FileExecutionArtifactStore(data_path)
 
         self.agent_adapters: dict[str, AgentAdapter] = {
             "claude": ClaudeAdapter(),
