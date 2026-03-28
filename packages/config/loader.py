@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
 
-from packages.config.models import LoadedConfig, PlatformConfig
+from packages.config.models import LoadedConfig, PlatformConfig, RuntimeConfig
 from packages.domain.models import Project
 
 
@@ -14,8 +15,9 @@ class ConfigLoader:
 
     def load(self) -> LoadedConfig:
         platform = self._load_platform_config()
+        runtime = self._load_runtime_config()
         projects = self._load_projects(platform.paths.projects_dir)
-        return LoadedConfig(platform=platform, projects=projects)
+        return LoadedConfig(platform=platform, runtime=runtime, projects=projects)
 
     def _load_platform_config(self) -> PlatformConfig:
         config_path = self.root_path / "configs" / "platform.yaml"
@@ -24,6 +26,14 @@ class ConfigLoader:
 
         data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         return PlatformConfig.model_validate(data)
+
+    def _load_runtime_config(self) -> RuntimeConfig:
+        config_path = self.root_path / "config.json"
+        if not config_path.exists():
+            return RuntimeConfig()
+
+        data = json.loads(config_path.read_text(encoding="utf-8")) or {}
+        return RuntimeConfig.model_validate(data)
 
     def _load_projects(self, relative_projects_dir: Path) -> list[Project]:
         projects_dir = self.root_path / relative_projects_dir

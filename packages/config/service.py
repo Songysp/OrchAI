@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+import os
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from packages.config.models import ClaudeDriverMode, ClaudeRuntimeConfig, LoadedConfig
+
+
+class ResolvedClaudeConfig(BaseModel):
+    mode: ClaudeDriverMode
+    model: str | None = None
+    cli_command: str = "claude"
+    timeout: int = 120
+    api_key: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConfigService:
+    def __init__(self, loaded_config: LoadedConfig) -> None:
+        self.loaded_config = loaded_config
+
+    def resolve_agent_model(self, provider: str, model: str | None) -> str | None:
+        if provider != "claude":
+            return model
+        return model or self.loaded_config.runtime.claude.default_model
+
+    def resolve_claude_config(
+        self,
+        parameters: dict[str, Any] | None = None,
+        model: str | None = None,
+    ) -> ResolvedClaudeConfig:
+        merged_parameters = self._merge_claude_parameters(parameters or {})
+        runtime = ClaudeRuntimeConfig.model_validate(merged_parameters)
+        api_key = runtime.api.api_key or os.getenv(runtime.api.api_key_env)
+        if runtime.mode == "api" and not api_key:
+            raise ValueError(
+                "Claude API mode requires a configured API key or an environment variable "
+                f"named '{runtime.api.api_key_env}'."
+            )
+        return ResolvedClaudeConfig(
+            mode=runtime.mode,
+            model=self.resolve_agent_model("claude", model),
+            cli_command=runtime.cli.command,
+            timeout=runtime.cli.timeout,
+            api_key=api_key,
+            parameters=self._resolved_parameters(runtime=runtime, api_key=api_key),
+        )
+
+    def _merge_claude_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        claude_defaults = self.loaded_config.runtime.claude.model_dump(mode="python")
+
+        mode = parameters.get("driver_mode", claude_defaults["mode"])
+        merged: dict[str, Any] = {
+            "mode": mode,
+            "cli": dict(claude_defaults["cli"]),
+            "api": dict(claude_defaults["api"]),
+        }
+
+        if "timeout" in parameters:
+            merged["cli"]["timeout"] = parameters["timeout"]
+        if "command" in parameters:
+            merged["cli"]["command"] = parameters["command"]
+
+        if "api_key" in parameters:
+            merged["api"]["api_key"] = parameters["api_key"]
+        if "api_key_env" in parameters:
+            merged["api"]["api_key_env"] = parameters["api_key_env"]
+
+        return merged
+
+    def _resolved_parameters(self, runtime: ClaudeRuntimeConfig, api_key: str | None) -> dict[str, Any]:
+        if runtime.mode == "cli":
+            return {
+                "driver_mode": runtime.mode,
+                "command": runtime.cli.command,
+                "timeout": runtime.cli.timeout,
+            }
+
+        return {
+            "driver_mode": runtime.mode,
+            "api_key": "***" if api_key else None,
+            "api_key_env": runtime.api.api_key_env,
+        }

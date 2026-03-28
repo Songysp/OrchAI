@@ -2,27 +2,20 @@
 description: OrchAI 개발 환경 설정 및 로컬 설치 가이드
 ---
 
-# 🛠️ OrchAI Setup Workflow
+# 🛠️ OrchAI 셋업 워크플로우
 
-이 워크플로우는 프로젝트 피벗 이후 새롭게 도입된 CLI 환경을 설정하는 단계를 정의합니다.
+본 문서는 팀원들이 로컬 환경을 동기화하기 위한 가이드입니다.
 
-1. **의존성 확인**
-   - Python 3.11 이상이 설치되어 있는지 확인합니다.
-   - 로컬 터미널에 `claude` CLI가 설치되어 있고 `claude auth login`이 완료되었는지 확인합니다.
+## 1. 의존성 설치 (Architect Path)
 
-2. **패키지 설치 (Editable Mode)**
-   // turbo
-   ```bash
-   pip install -e .
-   ```
-   이 명령을 통해 `pyproject.toml`에 정의된 `orchai` 명령어가 시스템에 등록됩니다.
+// turbo
+```powershell
+& "C:\Users\song\AppData\Local\Programs\Python\Python310\python.exe" -m pip install typer[all] rich pydantic-settings
+```
 
-3. **설정 파일 준비**
-   - `config.json` 파일을 생성하여 사용할 드라이버(CLI 또는 API)를 설정합니다.
+## 2. 드라이버 확인
+- `where.exe claude`를 실행하여 경로가 잡히는지 확인합니다.
+- 인증이 필요한 경우 `claude.cmd`를 통해 미리 로그인하십시오.
 
-4. **설치 확인**
-   // turbo
-   ```bash
-   orchai --help
-   ```
-   정상적으로 도움말이 출력되면 설치가 완료된 것입니다.
+## 3. 프로젝트 초기 파일 생성
+- `config.json`의 스키마는 `ConfigService` 가이드에 따릅니다.

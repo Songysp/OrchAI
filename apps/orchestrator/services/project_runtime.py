@@ -9,7 +9,10 @@ from packages.domain.services.registry import PlatformRegistry
 class ProjectRuntime:
     def __init__(self, registry: PlatformRegistry) -> None:
         self.registry = registry
-        self.agent_factory = AgentFactory(registry.agent_adapters)
+        self.agent_factory = AgentFactory(
+            registry.agent_adapters,
+            config_service=registry.config_service,
+        )
 
     def get_project(self, project_id: str) -> Project:
         project = self.registry.project_store.get_project(project_id)

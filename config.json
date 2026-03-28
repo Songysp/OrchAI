@@ -1,0 +1,12 @@
+{
+  "claude": {
+    "mode": "cli",
+    "cli": {
+      "command": "claude",
+      "timeout": 120
+    },
+    "api": {
+      "api_key_env": "ANTHROPIC_API_KEY"
+    }
+  }
+}

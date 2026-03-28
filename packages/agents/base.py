@@ -28,6 +28,7 @@ class AgentTurnResult(BaseModel):
     provider: str
     model: str | None = None
     output: str
+    status: str = "completed"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
