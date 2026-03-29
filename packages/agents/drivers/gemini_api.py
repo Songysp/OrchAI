@@ -9,6 +9,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from packages.agents.drivers.base import BaseDriver
+from packages.agents.errors import ProviderAPIError, ProviderRateLimitError
 
 
 class GeminiAPIDriver(BaseDriver):
@@ -58,6 +59,16 @@ class GeminiAPIDriver(BaseDriver):
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"Gemini API call failed ({exc.code}): {body}") from exc
+            if exc.code == 429:
+                raise ProviderRateLimitError(
+                    "gemini",
+                    f"Gemini API rate limit reached ({exc.code}): {body}",
+                    status_code=exc.code,
+                ) from exc
+            raise ProviderAPIError(
+                "gemini",
+                f"Gemini API call failed ({exc.code}): {body}",
+                status_code=exc.code,
+            ) from exc
         except URLError as exc:
-            raise RuntimeError(f"Gemini API request failed: {exc.reason}") from exc
+            raise ProviderAPIError("gemini", f"Gemini API request failed: {exc.reason}") from exc

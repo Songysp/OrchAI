@@ -19,6 +19,7 @@ from packages.agents import CodexAdapter, GeminiAdapter
 from packages.agents.base import AgentAdapter, AgentSelection, AgentTurnRequest
 from packages.agents.claude_adapter import ClaudeAdapter
 from packages.agents.drivers.claude_cli import ClaudeCLIQuotaError
+from packages.agents.errors import ProviderAPIError, ProviderRateLimitError
 from packages.config import ConfigLoader, ConfigService
 from packages.domain.models.project import Project
 from packages.orchestrator.hive import HiveOrchestrator
@@ -58,6 +59,10 @@ def entrypoint(
         asyncio.run(_run_repl(provider, model, mode))
     except ClaudeCLIQuotaError as exc:
         _exit_for_claude_quota(exc)
+    except ProviderRateLimitError as exc:
+        _exit_for_provider_rate_limit(exc)
+    except ProviderAPIError as exc:
+        _exit_for_provider_api_error(exc)
 
 
 @app.command()
@@ -72,6 +77,10 @@ def chat(
         asyncio.run(_run_single_turn(prompt, provider, model, mode, show_banner=True))
     except ClaudeCLIQuotaError as exc:
         _exit_for_claude_quota(exc)
+    except ProviderRateLimitError as exc:
+        _exit_for_provider_rate_limit(exc)
+    except ProviderAPIError as exc:
+        _exit_for_provider_api_error(exc)
 
 
 @app.command()
@@ -85,6 +94,10 @@ def repl(
         asyncio.run(_run_repl(provider, model, mode))
     except ClaudeCLIQuotaError as exc:
         _exit_for_claude_quota(exc)
+    except ProviderRateLimitError as exc:
+        _exit_for_provider_rate_limit(exc)
+    except ProviderAPIError as exc:
+        _exit_for_provider_api_error(exc)
 
 
 @app.command()
@@ -100,6 +113,10 @@ def orchestrate(
         asyncio.run(_run_full_orchestration(prompt, provider, model, mode, max_turns))
     except ClaudeCLIQuotaError as exc:
         _exit_for_claude_quota(exc)
+    except ProviderRateLimitError as exc:
+        _exit_for_provider_rate_limit(exc)
+    except ProviderAPIError as exc:
+        _exit_for_provider_api_error(exc)
 
 
 # ── Async runners ─────────────────────────────────────────────────────────────
@@ -292,6 +309,24 @@ def _exit_for_claude_quota(exc: ClaudeCLIQuotaError) -> None:
     if exc.reset_at:
         console.print(f"[yellow]Reset:[/yellow] {exc.reset_at}")
     console.print("[dim]Retry later, switch to `--mode api`, or update your Claude CLI account limits.[/dim]\n")
+    raise typer.Exit(code=1)
+
+
+def _exit_for_provider_rate_limit(exc: ProviderRateLimitError) -> None:
+    provider_name = exc.provider.capitalize()
+    console.print(f"\n[bold red]{provider_name} API rate limit reached.[/bold red]")
+    if exc.reset_hint:
+        console.print(f"[yellow]Reset:[/yellow] {exc.reset_hint}")
+    console.print(f"[dim]{exc}[/dim]\n")
+    raise typer.Exit(code=1)
+
+
+def _exit_for_provider_api_error(exc: ProviderAPIError) -> None:
+    provider_name = exc.provider.capitalize()
+    console.print(f"\n[bold red]{provider_name} API request failed.[/bold red]")
+    if exc.status_code is not None:
+        console.print(f"[yellow]HTTP status:[/yellow] {exc.status_code}")
+    console.print(f"[dim]{exc}[/dim]\n")
     raise typer.Exit(code=1)
 
 

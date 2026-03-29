@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from apps.cli import main, ui
 from packages.agents.drivers.claude_cli import ClaudeCLIQuotaError
+from packages.agents.errors import ProviderAPIError, ProviderRateLimitError
 from packages.domain.models.project import Project
 from packages.domain.models.turn import TurnResult
 
@@ -102,6 +103,46 @@ def test_orchestrate_command_handles_claude_quota_error(monkeypatch):
     assert "7pm" in result.output
     assert "Asia/Seoul" in result.output
     assert "Traceback" not in result.output
+
+
+def test_chat_command_handles_provider_rate_limit(monkeypatch):
+    async def fake_run_single_turn(
+        prompt: str,
+        provider: str | None,
+        model: str | None,
+        mode: str | None,
+        *,
+        show_banner: bool = True,
+    ) -> None:
+        raise ProviderRateLimitError("gemini", "Gemini API rate limit reached (429): limit", status_code=429)
+
+    monkeypatch.setattr(main, "_run_single_turn", fake_run_single_turn)
+
+    result = runner.invoke(main.app, ["chat", "hello", "--provider", "gemini"])
+
+    assert result.exit_code == 1
+    assert "Gemini API rate limit reached." in result.output
+    assert "429" in result.output
+
+
+def test_chat_command_handles_provider_api_error(monkeypatch):
+    async def fake_run_single_turn(
+        prompt: str,
+        provider: str | None,
+        model: str | None,
+        mode: str | None,
+        *,
+        show_banner: bool = True,
+    ) -> None:
+        raise ProviderAPIError("codex", "OpenAI Responses API call failed (401): bad key", status_code=401)
+
+    monkeypatch.setattr(main, "_run_single_turn", fake_run_single_turn)
+
+    result = runner.invoke(main.app, ["chat", "hello", "--provider", "codex"])
+
+    assert result.exit_code == 1
+    assert "Codex API request failed." in result.output
+    assert "401" in result.output
 
 
 def test_root_command_invokes_repl(monkeypatch):

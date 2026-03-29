@@ -8,6 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from packages.agents.drivers.base import BaseDriver
+from packages.agents.errors import ProviderAPIError, ProviderRateLimitError
 
 
 class CodexAPIDriver(BaseDriver):
@@ -52,6 +53,16 @@ class CodexAPIDriver(BaseDriver):
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"OpenAI Responses API call failed ({exc.code}): {body}") from exc
+            if exc.code == 429:
+                raise ProviderRateLimitError(
+                    "codex",
+                    f"OpenAI Responses API rate limit reached ({exc.code}): {body}",
+                    status_code=exc.code,
+                ) from exc
+            raise ProviderAPIError(
+                "codex",
+                f"OpenAI Responses API call failed ({exc.code}): {body}",
+                status_code=exc.code,
+            ) from exc
         except URLError as exc:
-            raise RuntimeError(f"OpenAI Responses API request failed: {exc.reason}") from exc
+            raise ProviderAPIError("codex", f"OpenAI Responses API request failed: {exc.reason}") from exc

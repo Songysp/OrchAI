@@ -125,9 +125,28 @@ Rules:
 ```bash
 # config.json (project root) — minimal example
 {
-  "platform": {
-    "default_driver": "cli",
-    "default_model": "claude-sonnet-4-6"
+  "claude": {
+    "mode": "cli",
+    "default_model": "claude-sonnet-4-6",
+    "cli": {
+      "command": "claude",
+      "timeout": 120
+    },
+    "api": {
+      "api_key_env": "ANTHROPIC_API_KEY"
+    }
+  },
+  "gemini": {
+    "default_model": "gemini-2.0-flash",
+    "api": {
+      "api_key_env": "GEMINI_API_KEY"
+    }
+  },
+  "codex": {
+    "default_model": "gpt-5",
+    "api": {
+      "api_key_env": "OPENAI_API_KEY"
+    }
   }
 }
 ```
