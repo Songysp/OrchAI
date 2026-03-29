@@ -49,6 +49,19 @@ class ClaudeAPIConfig(BaseModel):
         return self
 
 
+class SimpleAPIConfig(BaseModel):
+    api_key: str | None = None
+    api_key_env: str
+
+    @model_validator(mode="after")
+    def validate_api_credentials(self) -> "SimpleAPIConfig":
+        if self.api_key is not None and not self.api_key.strip():
+            raise ValueError("API key cannot be blank.")
+        if not self.api_key_env.strip():
+            raise ValueError("API key env var name cannot be blank.")
+        return self
+
+
 class ClaudeRuntimeConfig(BaseModel):
     mode: ClaudeDriverMode = "cli"
     default_model: str | None = None
@@ -56,8 +69,20 @@ class ClaudeRuntimeConfig(BaseModel):
     api: ClaudeAPIConfig = Field(default_factory=ClaudeAPIConfig)
 
 
+class GeminiRuntimeConfig(BaseModel):
+    default_model: str = "gemini-2.0-flash"
+    api: SimpleAPIConfig = Field(default_factory=lambda: SimpleAPIConfig(api_key_env="GEMINI_API_KEY"))
+
+
+class CodexRuntimeConfig(BaseModel):
+    default_model: str = "gpt-5"
+    api: SimpleAPIConfig = Field(default_factory=lambda: SimpleAPIConfig(api_key_env="OPENAI_API_KEY"))
+
+
 class RuntimeConfig(BaseModel):
     claude: ClaudeRuntimeConfig = Field(default_factory=ClaudeRuntimeConfig)
+    gemini: GeminiRuntimeConfig = Field(default_factory=GeminiRuntimeConfig)
+    codex: CodexRuntimeConfig = Field(default_factory=CodexRuntimeConfig)
 
 
 class LoadedConfig(BaseModel):

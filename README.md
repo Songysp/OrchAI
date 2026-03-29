@@ -44,8 +44,8 @@ If you are running from the repository root on Windows, `orchai.cmd` lets you la
 When no `--provider` is supplied, OrchAI shows a startup menu:
 1. `Claude CLI`
 2. `Claude API`
-3. `Gemini` (current repo implementation is a stub)
-4. `Codex` (current repo implementation is a stub)
+3. `Gemini API`
+4. `Codex API`
 
 ---
 

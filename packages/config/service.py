@@ -5,7 +5,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from packages.config.models import ClaudeDriverMode, ClaudeRuntimeConfig, LoadedConfig
+from packages.config.models import (
+    ClaudeDriverMode,
+    ClaudeRuntimeConfig,
+    CodexRuntimeConfig,
+    GeminiRuntimeConfig,
+    LoadedConfig,
+)
 
 
 class ResolvedClaudeConfig(BaseModel):
@@ -14,6 +20,14 @@ class ResolvedClaudeConfig(BaseModel):
     cli_command: str = "claude"
     timeout: int = 120
     api_key: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResolvedProviderAPIConfig(BaseModel):
+    provider: str
+    model: str | None = None
+    api_key: str | None = None
+    api_key_env: str
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -46,6 +60,20 @@ class ConfigService:
             timeout=runtime.cli.timeout,
             api_key=api_key,
             parameters=self._resolved_parameters(runtime=runtime, api_key=api_key),
+        )
+
+    def resolve_gemini_config(self, model: str | None = None) -> ResolvedProviderAPIConfig:
+        return self._resolve_simple_provider_config(
+            provider="gemini",
+            runtime=self.loaded_config.runtime.gemini,
+            model=model,
+        )
+
+    def resolve_codex_config(self, model: str | None = None) -> ResolvedProviderAPIConfig:
+        return self._resolve_simple_provider_config(
+            provider="codex",
+            runtime=self.loaded_config.runtime.codex,
+            model=model,
         )
 
     def _merge_claude_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
@@ -83,3 +111,28 @@ class ConfigService:
             "api_key": "***" if api_key else None,
             "api_key_env": runtime.api.api_key_env,
         }
+
+    def _resolve_simple_provider_config(
+        self,
+        *,
+        provider: str,
+        runtime: GeminiRuntimeConfig | CodexRuntimeConfig,
+        model: str | None,
+    ) -> ResolvedProviderAPIConfig:
+        api_key = runtime.api.api_key or os.getenv(runtime.api.api_key_env)
+        if not api_key:
+            raise ValueError(
+                f"{provider.capitalize()} API mode requires a configured API key or an environment variable "
+                f"named '{runtime.api.api_key_env}'."
+            )
+        resolved_model = model or runtime.default_model
+        return ResolvedProviderAPIConfig(
+            provider=provider,
+            model=resolved_model,
+            api_key=api_key,
+            api_key_env=runtime.api.api_key_env,
+            parameters={
+                "api_key": "***",
+                "api_key_env": runtime.api.api_key_env,
+            },
+        )

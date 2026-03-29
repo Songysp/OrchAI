@@ -45,8 +45,8 @@ class PlatformRegistry:
 
         self.agent_adapters: dict[str, AgentAdapter] = {
             "claude": ClaudeAdapter(config_service=self.config_service),
-            "gemini": GeminiAdapter(),
-            "codex": CodexAdapter(),
+            "gemini": GeminiAdapter(config_service=self.config_service),
+            "codex": CodexAdapter(config_service=self.config_service),
         }
         # Chat platform adapters removed — CLI-First / Zero-Infrastructure design.
         self.chat_adapters: dict[str, ChatAdapter] = {}

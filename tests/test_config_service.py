@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from packages.agents import AgentFactory, ClaudeAdapter
 from packages.config import ConfigLoader, ConfigService, LoadedConfig, PlatformConfig, RuntimeConfig
-from packages.config.models import ClaudeRuntimeConfig
+from packages.config.models import ClaudeRuntimeConfig, CodexRuntimeConfig, GeminiRuntimeConfig
 from packages.domain.models import AgentMapping, Project
 
 
@@ -136,3 +136,37 @@ def test_agent_factory_inherits_claude_default_model() -> None:
 
     assert selection.model == "claude-config-default"
     assert selection.parameters["temperature"] == 0.2
+
+
+def test_config_service_resolves_gemini_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+    service = ConfigService(
+        LoadedConfig(
+            platform=PlatformConfig(),
+            runtime=RuntimeConfig(gemini=GeminiRuntimeConfig(default_model="gemini-2.5-pro")),
+        )
+    )
+
+    resolved = service.resolve_gemini_config(model=None)
+
+    assert resolved.provider == "gemini"
+    assert resolved.model == "gemini-2.5-pro"
+    assert resolved.api_key_env == "GEMINI_API_KEY"
+    assert resolved.parameters["api_key"] == "***"
+
+
+def test_config_service_resolves_codex_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    service = ConfigService(
+        LoadedConfig(
+            platform=PlatformConfig(),
+            runtime=RuntimeConfig(codex=CodexRuntimeConfig(default_model="gpt-5.1")),
+        )
+    )
+
+    resolved = service.resolve_codex_config(model=None)
+
+    assert resolved.provider == "codex"
+    assert resolved.model == "gpt-5.1"
+    assert resolved.api_key_env == "OPENAI_API_KEY"
+    assert resolved.parameters["api_key"] == "***"

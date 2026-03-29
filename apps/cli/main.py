@@ -36,8 +36,8 @@ _REPL_HISTORY_WINDOW = 6
 _PROVIDER_MENU = {
     "1": {"provider": "claude", "mode": "cli", "label": "Claude CLI", "status": "ready"},
     "2": {"provider": "claude", "mode": "api", "label": "Claude API", "status": "ready"},
-    "3": {"provider": "gemini", "mode": None, "label": "Gemini", "status": "stub"},
-    "4": {"provider": "codex", "mode": None, "label": "Codex", "status": "stub"},
+    "3": {"provider": "gemini", "mode": None, "label": "Gemini API", "status": "ready"},
+    "4": {"provider": "codex", "mode": None, "label": "Codex API", "status": "ready"},
 }
 
 
@@ -173,23 +173,31 @@ def _build_worker_runtime(
         selection = AgentSelection(role="worker", provider="claude", model=model, parameters=params)
         return adapter, selection
 
+    if chosen_provider == "gemini":
+        resolved = config_service.resolve_gemini_config(model=model)
+        adapter = GeminiAdapter(config_service=config_service)
+    else:
+        resolved = config_service.resolve_codex_config(model=model)
+        adapter = CodexAdapter(config_service=config_service)
+
     display_config({
         "provider": chosen_provider,
-        "model": model,
-        "driver_mode": "n/a",
-        "status": "stub",
+        "model": resolved.model,
+        "driver_mode": "api",
+        "api_key_env": resolved.api_key_env,
+        "status": "ready",
     })
-    console.print(
-        f"[yellow]{chosen_provider} adapter is currently a stub in this repo. "
-        f"It will return placeholder responses until a real driver is implemented.[/yellow]"
+    selection = AgentSelection(
+        role="worker",
+        provider=chosen_provider,
+        model=resolved.model,
+        parameters=resolved.parameters,
     )
-    adapter = GeminiAdapter() if chosen_provider == "gemini" else CodexAdapter()
-    selection = AgentSelection(role="worker", provider=chosen_provider, model=model, parameters={})
     return adapter, selection
 
 
 async def _run_worker_turn(
-    adapter: ClaudeAdapter,
+    adapter: AgentAdapter,
     selection: AgentSelection,
     prompt: str,
     *,
