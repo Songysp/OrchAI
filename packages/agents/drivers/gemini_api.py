@@ -64,11 +64,13 @@ class GeminiAPIDriver(BaseDriver):
                     "gemini",
                     f"Gemini API rate limit reached ({exc.code}): {body}",
                     status_code=exc.code,
+                    mode="api",
                 ) from exc
             raise ProviderAPIError(
                 "gemini",
                 f"Gemini API call failed ({exc.code}): {body}",
                 status_code=exc.code,
+                mode="api",
             ) from exc
         except URLError as exc:
-            raise ProviderAPIError("gemini", f"Gemini API request failed: {exc.reason}") from exc
+            raise ProviderAPIError("gemini", f"Gemini API request failed: {exc.reason}", mode="api") from exc

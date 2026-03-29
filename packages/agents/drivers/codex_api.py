@@ -58,11 +58,13 @@ class CodexAPIDriver(BaseDriver):
                     "codex",
                     f"OpenAI Responses API rate limit reached ({exc.code}): {body}",
                     status_code=exc.code,
+                    mode="api",
                 ) from exc
             raise ProviderAPIError(
                 "codex",
                 f"OpenAI Responses API call failed ({exc.code}): {body}",
                 status_code=exc.code,
+                mode="api",
             ) from exc
         except URLError as exc:
-            raise ProviderAPIError("codex", f"OpenAI Responses API request failed: {exc.reason}") from exc
+            raise ProviderAPIError("codex", f"OpenAI Responses API request failed: {exc.reason}", mode="api") from exc

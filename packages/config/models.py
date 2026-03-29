@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from packages.domain.models import Project
 
-ClaudeDriverMode = Literal["cli", "api"]
+ProviderDriverMode = Literal["cli", "api"]
+ClaudeDriverMode = ProviderDriverMode
 
 
 class PlatformPaths(BaseModel):
@@ -62,6 +63,19 @@ class SimpleAPIConfig(BaseModel):
         return self
 
 
+class SimpleCLIConfig(BaseModel):
+    command: str
+    timeout: int = 120
+
+    @model_validator(mode="after")
+    def validate_cli_settings(self) -> "SimpleCLIConfig":
+        if not self.command.strip():
+            raise ValueError("CLI command cannot be blank.")
+        if self.timeout <= 0:
+            raise ValueError("CLI timeout must be greater than 0.")
+        return self
+
+
 class ClaudeRuntimeConfig(BaseModel):
     mode: ClaudeDriverMode = "cli"
     default_model: str | None = None
@@ -70,12 +84,16 @@ class ClaudeRuntimeConfig(BaseModel):
 
 
 class GeminiRuntimeConfig(BaseModel):
+    mode: ProviderDriverMode = "cli"
     default_model: str = "gemini-2.0-flash"
+    cli: SimpleCLIConfig = Field(default_factory=lambda: SimpleCLIConfig(command="gemini", timeout=120))
     api: SimpleAPIConfig = Field(default_factory=lambda: SimpleAPIConfig(api_key_env="GEMINI_API_KEY"))
 
 
 class CodexRuntimeConfig(BaseModel):
+    mode: ProviderDriverMode = "cli"
     default_model: str = "gpt-5"
+    cli: SimpleCLIConfig = Field(default_factory=lambda: SimpleCLIConfig(command="codex", timeout=120))
     api: SimpleAPIConfig = Field(default_factory=lambda: SimpleAPIConfig(api_key_env="OPENAI_API_KEY"))
 
 

@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 
 from apps.cli import main, ui
 from packages.agents.drivers.claude_cli import ClaudeCLIQuotaError
-from packages.agents.errors import ProviderAPIError, ProviderRateLimitError
+from packages.agents.errors import ProviderExecutionError, ProviderRateLimitError
 from packages.domain.models.project import Project
 from packages.domain.models.turn import TurnResult
 
@@ -114,14 +114,19 @@ def test_chat_command_handles_provider_rate_limit(monkeypatch):
         *,
         show_banner: bool = True,
     ) -> None:
-        raise ProviderRateLimitError("gemini", "Gemini API rate limit reached (429): limit", status_code=429)
+        raise ProviderRateLimitError(
+            "gemini",
+            "Gemini CLI rate limit reached (429): limit",
+            status_code=429,
+            mode="cli",
+        )
 
     monkeypatch.setattr(main, "_run_single_turn", fake_run_single_turn)
 
     result = runner.invoke(main.app, ["chat", "hello", "--provider", "gemini"])
 
     assert result.exit_code == 1
-    assert "Gemini API rate limit reached." in result.output
+    assert "Gemini CLI rate limit reached." in result.output
     assert "429" in result.output
 
 
@@ -134,14 +139,19 @@ def test_chat_command_handles_provider_api_error(monkeypatch):
         *,
         show_banner: bool = True,
     ) -> None:
-        raise ProviderAPIError("codex", "OpenAI Responses API call failed (401): bad key", status_code=401)
+        raise ProviderExecutionError(
+            "codex",
+            "Codex CLI error (code 1): bad auth",
+            status_code=401,
+            mode="cli",
+        )
 
     monkeypatch.setattr(main, "_run_single_turn", fake_run_single_turn)
 
     result = runner.invoke(main.app, ["chat", "hello", "--provider", "codex"])
 
     assert result.exit_code == 1
-    assert "Codex API request failed." in result.output
+    assert "Codex CLI request failed." in result.output
     assert "401" in result.output
 
 
@@ -212,21 +222,21 @@ def test_run_repl_clear_resets_history(monkeypatch):
 
 
 def test_resolve_provider_choice_from_prompt(monkeypatch):
-    monkeypatch.setattr(main.Prompt, "ask", lambda *args, **kwargs: "4")
+    monkeypatch.setattr(main.Prompt, "ask", lambda *args, **kwargs: "3")
 
     provider, mode = main._resolve_provider_choice(None, None)
 
     assert provider == "codex"
-    assert mode is None
+    assert mode == "cli"
 
 
-def test_resolve_provider_choice_maps_claude_api_prompt(monkeypatch):
+def test_resolve_provider_choice_maps_gemini_cli_prompt(monkeypatch):
     monkeypatch.setattr(main.Prompt, "ask", lambda *args, **kwargs: "2")
 
     provider, mode = main._resolve_provider_choice(None, None)
 
-    assert provider == "claude"
-    assert mode == "api"
+    assert provider == "gemini"
+    assert mode == "cli"
 
 
 class _StatusRecorder:

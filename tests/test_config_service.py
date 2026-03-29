@@ -139,6 +139,60 @@ def test_agent_factory_inherits_claude_default_model() -> None:
 
 
 def test_config_service_resolves_gemini_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = ConfigService(
+        LoadedConfig(
+            platform=PlatformConfig(),
+            runtime=RuntimeConfig(
+                gemini=GeminiRuntimeConfig(
+                    default_model="gemini-2.5-pro",
+                    cli={"command": "gemini-local", "timeout": 90},
+                )
+            ),
+        )
+    )
+
+    resolved = service.resolve_gemini_config(model=None)
+
+    assert resolved.provider == "gemini"
+    assert resolved.mode == "cli"
+    assert resolved.model == "gemini-2.5-pro"
+    assert resolved.cli_command == "gemini-local"
+    assert resolved.timeout == 90
+    assert resolved.parameters == {
+        "driver_mode": "cli",
+        "command": "gemini-local",
+        "timeout": 90,
+    }
+
+
+def test_config_service_resolves_codex_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = ConfigService(
+        LoadedConfig(
+            platform=PlatformConfig(),
+            runtime=RuntimeConfig(
+                codex=CodexRuntimeConfig(
+                    default_model="gpt-5.1",
+                    cli={"command": "codex-local", "timeout": 80},
+                )
+            ),
+        )
+    )
+
+    resolved = service.resolve_codex_config(model=None)
+
+    assert resolved.provider == "codex"
+    assert resolved.mode == "cli"
+    assert resolved.model == "gpt-5.1"
+    assert resolved.cli_command == "codex-local"
+    assert resolved.timeout == 80
+    assert resolved.parameters == {
+        "driver_mode": "cli",
+        "command": "codex-local",
+        "timeout": 80,
+    }
+
+
+def test_config_service_resolves_gemini_api_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     service = ConfigService(
         LoadedConfig(
@@ -147,26 +201,23 @@ def test_config_service_resolves_gemini_runtime(monkeypatch: pytest.MonkeyPatch)
         )
     )
 
-    resolved = service.resolve_gemini_config(model=None)
+    resolved = service.resolve_gemini_config(parameters={"driver_mode": "api"}, model=None)
 
-    assert resolved.provider == "gemini"
-    assert resolved.model == "gemini-2.5-pro"
+    assert resolved.mode == "api"
     assert resolved.api_key_env == "GEMINI_API_KEY"
     assert resolved.parameters["api_key"] == "***"
 
 
-def test_config_service_resolves_codex_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+def test_config_service_resolve_agent_model_for_codex_and_gemini() -> None:
     service = ConfigService(
         LoadedConfig(
             platform=PlatformConfig(),
-            runtime=RuntimeConfig(codex=CodexRuntimeConfig(default_model="gpt-5.1")),
+            runtime=RuntimeConfig(
+                gemini=GeminiRuntimeConfig(default_model="gemini-default"),
+                codex=CodexRuntimeConfig(default_model="codex-default"),
+            ),
         )
     )
 
-    resolved = service.resolve_codex_config(model=None)
-
-    assert resolved.provider == "codex"
-    assert resolved.model == "gpt-5.1"
-    assert resolved.api_key_env == "OPENAI_API_KEY"
-    assert resolved.parameters["api_key"] == "***"
+    assert service.resolve_agent_model("gemini", None) == "gemini-default"
+    assert service.resolve_agent_model("codex", None) == "codex-default"

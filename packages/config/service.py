@@ -11,6 +11,7 @@ from packages.config.models import (
     CodexRuntimeConfig,
     GeminiRuntimeConfig,
     LoadedConfig,
+    ProviderDriverMode,
 )
 
 
@@ -25,9 +26,12 @@ class ResolvedClaudeConfig(BaseModel):
 
 class ResolvedProviderAPIConfig(BaseModel):
     provider: str
+    mode: ProviderDriverMode
     model: str | None = None
+    cli_command: str | None = None
+    timeout: int | None = None
     api_key: str | None = None
-    api_key_env: str
+    api_key_env: str | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -36,9 +40,16 @@ class ConfigService:
         self.loaded_config = loaded_config
 
     def resolve_agent_model(self, provider: str, model: str | None) -> str | None:
-        if provider != "claude":
+        if model is not None:
             return model
-        return model or self.loaded_config.runtime.claude.default_model
+
+        if provider == "claude":
+            return self.loaded_config.runtime.claude.default_model
+        if provider == "gemini":
+            return self.loaded_config.runtime.gemini.default_model
+        if provider == "codex":
+            return self.loaded_config.runtime.codex.default_model
+        return model
 
     def resolve_claude_config(
         self,
@@ -62,17 +73,27 @@ class ConfigService:
             parameters=self._resolved_parameters(runtime=runtime, api_key=api_key),
         )
 
-    def resolve_gemini_config(self, model: str | None = None) -> ResolvedProviderAPIConfig:
+    def resolve_gemini_config(
+        self,
+        parameters: dict[str, Any] | None = None,
+        model: str | None = None,
+    ) -> ResolvedProviderAPIConfig:
         return self._resolve_simple_provider_config(
             provider="gemini",
             runtime=self.loaded_config.runtime.gemini,
+            parameters=parameters or {},
             model=model,
         )
 
-    def resolve_codex_config(self, model: str | None = None) -> ResolvedProviderAPIConfig:
+    def resolve_codex_config(
+        self,
+        parameters: dict[str, Any] | None = None,
+        model: str | None = None,
+    ) -> ResolvedProviderAPIConfig:
         return self._resolve_simple_provider_config(
             provider="codex",
             runtime=self.loaded_config.runtime.codex,
+            parameters=parameters or {},
             model=model,
         )
 
@@ -117,22 +138,43 @@ class ConfigService:
         *,
         provider: str,
         runtime: GeminiRuntimeConfig | CodexRuntimeConfig,
+        parameters: dict[str, Any],
         model: str | None,
     ) -> ResolvedProviderAPIConfig:
-        api_key = runtime.api.api_key or os.getenv(runtime.api.api_key_env)
+        mode = parameters.get("driver_mode", runtime.mode)
+        resolved_model = model or runtime.default_model
+        if mode == "cli":
+            command = str(parameters.get("command", runtime.cli.command))
+            timeout = int(parameters.get("timeout", runtime.cli.timeout))
+            return ResolvedProviderAPIConfig(
+                provider=provider,
+                mode="cli",
+                model=resolved_model,
+                cli_command=command,
+                timeout=timeout,
+                parameters={
+                    "driver_mode": "cli",
+                    "command": command,
+                    "timeout": timeout,
+                },
+            )
+
+        api_key_env = str(parameters.get("api_key_env", runtime.api.api_key_env))
+        api_key = parameters.get("api_key") or runtime.api.api_key or os.getenv(api_key_env)
         if not api_key:
             raise ValueError(
                 f"{provider.capitalize()} API mode requires a configured API key or an environment variable "
-                f"named '{runtime.api.api_key_env}'."
+                f"named '{api_key_env}'."
             )
-        resolved_model = model or runtime.default_model
         return ResolvedProviderAPIConfig(
             provider=provider,
+            mode="api",
             model=resolved_model,
             api_key=api_key,
-            api_key_env=runtime.api.api_key_env,
+            api_key_env=api_key_env,
             parameters={
+                "driver_mode": "api",
                 "api_key": "***",
-                "api_key_env": runtime.api.api_key_env,
+                "api_key_env": api_key_env,
             },
         )

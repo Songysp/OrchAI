@@ -19,12 +19,19 @@ from packages.agents import CodexAdapter, GeminiAdapter
 from packages.agents.base import AgentAdapter, AgentSelection, AgentTurnRequest
 from packages.agents.claude_adapter import ClaudeAdapter
 from packages.agents.drivers.claude_cli import ClaudeCLIQuotaError
-from packages.agents.errors import ProviderAPIError, ProviderRateLimitError
+from packages.agents.errors import ProviderExecutionError, ProviderRateLimitError
 from packages.config import ConfigLoader, ConfigService
 from packages.domain.models.project import Project
 from packages.orchestrator.hive import HiveOrchestrator
 
+try:
+    from packages.property_alerts import property_app
+except ModuleNotFoundError:
+    property_app = None
+
 app = typer.Typer(help="OrchAI: CLI-First AI Orchestrator")
+if property_app is not None:
+    app.add_typer(property_app, name="property")
 
 # Maps completed role → label for the NEXT waiting phase
 _NEXT_PHASE_LABEL = {
@@ -36,9 +43,8 @@ _NEXT_PHASE_LABEL = {
 _REPL_HISTORY_WINDOW = 6
 _PROVIDER_MENU = {
     "1": {"provider": "claude", "mode": "cli", "label": "Claude CLI", "status": "ready"},
-    "2": {"provider": "claude", "mode": "api", "label": "Claude API", "status": "ready"},
-    "3": {"provider": "gemini", "mode": None, "label": "Gemini API", "status": "ready"},
-    "4": {"provider": "codex", "mode": None, "label": "Codex API", "status": "ready"},
+    "2": {"provider": "gemini", "mode": "cli", "label": "Gemini CLI", "status": "ready"},
+    "3": {"provider": "codex", "mode": "cli", "label": "Codex CLI", "status": "ready"},
 }
 
 
@@ -61,8 +67,8 @@ def entrypoint(
         _exit_for_claude_quota(exc)
     except ProviderRateLimitError as exc:
         _exit_for_provider_rate_limit(exc)
-    except ProviderAPIError as exc:
-        _exit_for_provider_api_error(exc)
+    except ProviderExecutionError as exc:
+        _exit_for_provider_execution_error(exc)
 
 
 @app.command()
@@ -79,8 +85,8 @@ def chat(
         _exit_for_claude_quota(exc)
     except ProviderRateLimitError as exc:
         _exit_for_provider_rate_limit(exc)
-    except ProviderAPIError as exc:
-        _exit_for_provider_api_error(exc)
+    except ProviderExecutionError as exc:
+        _exit_for_provider_execution_error(exc)
 
 
 @app.command()
@@ -96,8 +102,8 @@ def repl(
         _exit_for_claude_quota(exc)
     except ProviderRateLimitError as exc:
         _exit_for_provider_rate_limit(exc)
-    except ProviderAPIError as exc:
-        _exit_for_provider_api_error(exc)
+    except ProviderExecutionError as exc:
+        _exit_for_provider_execution_error(exc)
 
 
 @app.command()
@@ -115,8 +121,8 @@ def orchestrate(
         _exit_for_claude_quota(exc)
     except ProviderRateLimitError as exc:
         _exit_for_provider_rate_limit(exc)
-    except ProviderAPIError as exc:
-        _exit_for_provider_api_error(exc)
+    except ProviderExecutionError as exc:
+        _exit_for_provider_execution_error(exc)
 
 
 # ── Async runners ─────────────────────────────────────────────────────────────
@@ -191,16 +197,20 @@ def _build_worker_runtime(
         return adapter, selection
 
     if chosen_provider == "gemini":
-        resolved = config_service.resolve_gemini_config(model=model)
+        params = {"driver_mode": chosen_mode} if chosen_mode else {}
+        resolved = config_service.resolve_gemini_config(parameters=params, model=model)
         adapter = GeminiAdapter(config_service=config_service)
     else:
-        resolved = config_service.resolve_codex_config(model=model)
+        params = {"driver_mode": chosen_mode} if chosen_mode else {}
+        resolved = config_service.resolve_codex_config(parameters=params, model=model)
         adapter = CodexAdapter(config_service=config_service)
 
     display_config({
         "provider": chosen_provider,
         "model": resolved.model,
-        "driver_mode": "api",
+        "driver_mode": resolved.mode,
+        "cli_command": resolved.cli_command,
+        "timeout": resolved.timeout,
         "api_key_env": resolved.api_key_env,
         "status": "ready",
     })
@@ -233,8 +243,8 @@ async def _run_worker_turn(
         agent_selection=selection,
     )
 
-    display_status("OrchAI", f"Sending prompt to Claude")
-    with _spinner("Waiting for Claude response..."):
+    display_status("OrchAI", f"Sending prompt to {selection.provider.capitalize()}")
+    with _spinner(f"Waiting for {selection.provider.capitalize()} response..."):
         return await adapter.run_turn(request)
 
 
@@ -314,16 +324,18 @@ def _exit_for_claude_quota(exc: ClaudeCLIQuotaError) -> None:
 
 def _exit_for_provider_rate_limit(exc: ProviderRateLimitError) -> None:
     provider_name = exc.provider.capitalize()
-    console.print(f"\n[bold red]{provider_name} API rate limit reached.[/bold red]")
+    mode_name = (exc.mode or "provider").upper()
+    console.print(f"\n[bold red]{provider_name} {mode_name} rate limit reached.[/bold red]")
     if exc.reset_hint:
         console.print(f"[yellow]Reset:[/yellow] {exc.reset_hint}")
     console.print(f"[dim]{exc}[/dim]\n")
     raise typer.Exit(code=1)
 
 
-def _exit_for_provider_api_error(exc: ProviderAPIError) -> None:
+def _exit_for_provider_execution_error(exc: ProviderExecutionError) -> None:
     provider_name = exc.provider.capitalize()
-    console.print(f"\n[bold red]{provider_name} API request failed.[/bold red]")
+    mode_name = (exc.mode or "provider").upper()
+    console.print(f"\n[bold red]{provider_name} {mode_name} request failed.[/bold red]")
     if exc.status_code is not None:
         console.print(f"[yellow]HTTP status:[/yellow] {exc.status_code}")
     console.print(f"[dim]{exc}[/dim]\n")
@@ -340,9 +352,8 @@ def _resolve_provider_choice(
     if normalized_provider is not None:
         if normalized_provider not in {"claude", "gemini", "codex"}:
             raise typer.BadParameter("Provider must be one of: claude, gemini, codex")
-        if normalized_provider != "claude" and normalized_mode is not None:
-            console.print("[yellow]Ignoring --mode because it only applies to the Claude provider.[/yellow]")
-            normalized_mode = None
+        if normalized_mode not in {None, "cli", "api"}:
+            raise typer.BadParameter("Mode must be one of: cli, api")
         return normalized_provider, normalized_mode
 
     return _prompt_for_provider_choice()

@@ -43,9 +43,8 @@ If you are running from the repository root on Windows, `orchai.cmd` lets you la
 
 When no `--provider` is supplied, OrchAI shows a startup menu:
 1. `Claude CLI`
-2. `Claude API`
-3. `Gemini API`
-4. `Codex API`
+2. `Gemini CLI`
+3. `Codex CLI`
 
 ---
 
@@ -137,13 +136,23 @@ Rules:
     }
   },
   "gemini": {
+    "mode": "cli",
     "default_model": "gemini-2.0-flash",
+    "cli": {
+      "command": "gemini",
+      "timeout": 120
+    },
     "api": {
       "api_key_env": "GEMINI_API_KEY"
     }
   },
   "codex": {
+    "mode": "cli",
     "default_model": "gpt-5",
+    "cli": {
+      "command": "codex",
+      "timeout": 120
+    },
     "api": {
       "api_key_env": "OPENAI_API_KEY"
     }
@@ -152,6 +161,8 @@ Rules:
 ```
 
 Full config schema: [`packages/config/models.py`](packages/config/models.py)
+
+All three providers can run in the current terminal without opening extra windows. OrchAI spawns the local provider CLI as a hidden subprocess and streams the result back into the single OrchAI interface. Use `--mode api` only when you explicitly want the provider's developer API instead of the logged-in local CLI.
 
 ---
 

@@ -11,13 +11,23 @@
     }
   },
   "gemini": {
+    "mode": "cli",
     "default_model": "gemini-2.0-flash",
+    "cli": {
+      "command": "gemini",
+      "timeout": 120
+    },
     "api": {
       "api_key_env": "GEMINI_API_KEY"
     }
   },
   "codex": {
+    "mode": "cli",
     "default_model": "gpt-5",
+    "cli": {
+      "command": "codex",
+      "timeout": 120
+    },
     "api": {
       "api_key_env": "OPENAI_API_KEY"
     }
