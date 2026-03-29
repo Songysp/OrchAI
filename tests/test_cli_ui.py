@@ -7,6 +7,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from apps.cli import main, ui
+from packages.agents.drivers.claude_cli import ClaudeCLIQuotaError
 from packages.domain.models.project import Project
 from packages.domain.models.turn import TurnResult
 
@@ -17,10 +18,19 @@ runner = CliRunner()
 def test_chat_command_invokes_async_runner(monkeypatch):
     captured: dict[str, object] = {}
 
-    async def fake_run_single_turn(prompt: str, model: str | None, mode: str | None) -> None:
+    async def fake_run_single_turn(
+        prompt: str,
+        provider: str | None,
+        model: str | None,
+        mode: str | None,
+        *,
+        show_banner: bool = True,
+    ) -> None:
         captured["prompt"] = prompt
+        captured["provider"] = provider
         captured["model"] = model
         captured["mode"] = mode
+        captured["show_banner"] = show_banner
 
     monkeypatch.setattr(main, "_run_single_turn", fake_run_single_turn)
 
@@ -29,8 +39,10 @@ def test_chat_command_invokes_async_runner(monkeypatch):
     assert result.exit_code == 0
     assert captured == {
         "prompt": "ship it",
+        "provider": None,
         "model": "claude-3",
         "mode": "api",
+        "show_banner": True,
     }
 
 
@@ -39,11 +51,13 @@ def test_orchestrate_command_invokes_async_runner(monkeypatch):
 
     async def fake_run_full_orchestration(
         prompt: str,
+        provider: str | None,
         model: str | None,
         mode: str | None,
         max_turns: int,
     ) -> None:
         captured["prompt"] = prompt
+        captured["provider"] = provider
         captured["model"] = model
         captured["mode"] = mode
         captured["max_turns"] = max_turns
@@ -58,10 +72,120 @@ def test_orchestrate_command_invokes_async_runner(monkeypatch):
     assert result.exit_code == 0
     assert captured == {
         "prompt": "build feature",
+        "provider": None,
         "model": "claude-3",
         "mode": "cli",
         "max_turns": 7,
     }
+
+
+def test_orchestrate_command_handles_claude_quota_error(monkeypatch):
+    async def fake_run_full_orchestration(
+        prompt: str,
+        provider: str | None,
+        model: str | None,
+        mode: str | None,
+        max_turns: int,
+    ) -> None:
+        raise ClaudeCLIQuotaError(
+            "Claude CLI error (code 1): You've hit your limit · resets 7pm (Asia/Seoul)",
+            reset_at="7pm (Asia/Seoul)",
+        )
+
+    monkeypatch.setattr(main, "_run_full_orchestration", fake_run_full_orchestration)
+
+    result = runner.invoke(main.app, ["orchestrate", "build feature"])
+
+    assert result.exit_code == 1
+    assert "Claude CLI usage limit reached." in result.output
+    assert "Reset:" in result.output
+    assert "7pm" in result.output
+    assert "Asia/Seoul" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_root_command_invokes_repl(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def fake_run_repl(provider: str | None, model: str | None, mode: str | None) -> None:
+        captured["provider"] = provider
+        captured["model"] = model
+        captured["mode"] = mode
+
+    monkeypatch.setattr(main, "_run_repl", fake_run_repl)
+
+    result = runner.invoke(main.app, [])
+
+    assert result.exit_code == 0
+    assert captured == {"provider": None, "model": None, "mode": None}
+
+
+def test_build_repl_prompt_includes_history() -> None:
+    prompt = main._build_repl_prompt(
+        "그리고 넌 누구냐",
+        [("안녕", "안녕하세요. OrchAI입니다.")],
+    )
+
+    assert "Continue the conversation naturally." in prompt
+    assert "User: 안녕" in prompt
+    assert "Assistant: 안녕하세요. OrchAI입니다." in prompt
+    assert "User: 그리고 넌 누구냐" in prompt
+    assert prompt.endswith("Assistant:")
+
+
+def test_build_repl_prompt_limits_history_window() -> None:
+    history = [(f"user-{idx}", f"assistant-{idx}") for idx in range(8)]
+
+    prompt = main._build_repl_prompt("latest", history)
+
+    assert "user-0" not in prompt
+    assert "assistant-0" not in prompt
+    assert "user-1" not in prompt
+    assert "assistant-1" not in prompt
+    assert "user-2" in prompt
+    assert "assistant-7" in prompt
+
+
+def test_run_repl_clear_resets_history(monkeypatch):
+    prompts = iter(["first", "/clear", "second", "/exit"])
+    sent_prompts: list[str] = []
+    rendered_outputs: list[str] = []
+
+    monkeypatch.setattr(main, "display_banner", lambda: None)
+    monkeypatch.setattr(main, "_build_worker_runtime", lambda provider, model, mode: ("adapter", "selection"))
+    monkeypatch.setattr(main.Prompt, "ask", lambda _: next(prompts))
+    monkeypatch.setattr(main, "_display_worker_result", lambda output: rendered_outputs.append(output))
+
+    async def fake_run_worker_turn(adapter, selection, prompt: str, *, project_id: str):
+        sent_prompts.append(prompt)
+        return type("Result", (), {"output": f"reply:{len(sent_prompts)}"})()
+
+    monkeypatch.setattr(main, "_run_worker_turn", fake_run_worker_turn)
+
+    asyncio.run(main._run_repl(None, None, None))
+
+    assert sent_prompts[0] == "first"
+    assert sent_prompts[1] == "second"
+    assert "first" not in sent_prompts[1]
+    assert rendered_outputs == ["reply:1", "reply:2"]
+
+
+def test_resolve_provider_choice_from_prompt(monkeypatch):
+    monkeypatch.setattr(main.Prompt, "ask", lambda *args, **kwargs: "4")
+
+    provider, mode = main._resolve_provider_choice(None, None)
+
+    assert provider == "codex"
+    assert mode is None
+
+
+def test_resolve_provider_choice_maps_claude_api_prompt(monkeypatch):
+    monkeypatch.setattr(main.Prompt, "ask", lambda *args, **kwargs: "2")
+
+    provider, mode = main._resolve_provider_choice(None, None)
+
+    assert provider == "claude"
+    assert mode == "api"
 
 
 class _StatusRecorder:
@@ -141,12 +265,10 @@ def test_orchestration_uses_rich_spinner(monkeypatch):
     monkeypatch.setattr(main, "console", console)
     monkeypatch.setattr(main, "display_banner", lambda: None)
     monkeypatch.setattr(main, "display_result", lambda role, output: rendered_results.append((role, output)))
-    monkeypatch.setattr(main, "ConfigService", lambda config: object())
-    monkeypatch.setattr(main.ConfigLoader, "load", lambda self: {})
-    monkeypatch.setattr(main, "ClaudeAdapter", lambda config_service: object())
+    monkeypatch.setattr(main, "_build_worker_runtime", lambda provider, model, mode: ("adapter", "selection"))
     monkeypatch.setattr(main, "HiveOrchestrator", FakeHiveOrchestrator)
 
-    asyncio.run(main._run_full_orchestration("Audit the repo", None, None, max_turns=3))
+    asyncio.run(main._run_full_orchestration("Audit the repo", None, None, None, max_turns=3))
 
     assert len(console.status_contexts) == 1
     status = console.status_contexts[0]

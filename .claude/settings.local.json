@@ -10,7 +10,12 @@
       "Read(//c/Users/song/.claude/skills/gstack/**)",
       "Bash(command -v bun)",
       "Bash(bun --version)",
-      "Bash(./setup)"
+      "Bash(./setup)",
+      "Bash(python:*)",
+      "Bash(python3 -m pytest tests/test_hive_logic.py -v)",
+      "Bash(py -m pytest tests/test_hive_logic.py -v)",
+      "Bash(py:*)",
+      "Bash(ls tests/*.py)"
     ]
   }
 }

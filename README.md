@@ -10,7 +10,7 @@ OrchAI is a local CLI orchestration platform that enables collaborative workflow
 
 | Principle | What it means |
 |---|---|
-| **CLI-First** | Entrypoint is `python apps/cli/main.py`. No web server required to run. |
+| **CLI-First** | Entrypoint is `orchai` or `python -m apps.cli.main`. No web server required to run. |
 | **Zero-Cost** | Uses the Claude CLI binary already on your machine. No API keys burned unless you choose API mode. |
 | **Hybrid Driver** | Transparently switches between `claude` CLI subprocess and the Anthropic API. |
 | **No Infrastructure** | SQLite for tracing, flat files for storage. Runs entirely on localhost. |
@@ -23,18 +23,29 @@ OrchAI is a local CLI orchestration platform that enables collaborative workflow
 # Install dependencies
 pip install -e .
 
+# Interactive shell (stays open and keeps conversation context)
+orchai
+
 # Single-turn chat with the AI worker
-python apps/cli/main.py chat "Explain the repository structure"
+orchai chat "Explain the repository structure"
 
 # Full Planner → Worker → Refiner orchestration loop
-python apps/cli/main.py orchestrate "Build a Python function to parse JSON logs"
+orchai orchestrate "Build a Python function to parse JSON logs"
 
 # With options
-python apps/cli/main.py orchestrate "Refactor the config loader" \
+orchai orchestrate "Refactor the config loader" \
     --mode api \
     --model claude-opus-4-6 \
     --max-turns 5
 ```
+
+If you are running from the repository root on Windows, `orchai.cmd` lets you launch the shell without installing the package first.
+
+When no `--provider` is supplied, OrchAI shows a startup menu:
+1. `Claude CLI`
+2. `Claude API`
+3. `Gemini` (current repo implementation is a stub)
+4. `Codex` (current repo implementation is a stub)
 
 ---
 
