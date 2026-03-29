@@ -24,14 +24,7 @@ from packages.config import ConfigLoader, ConfigService
 from packages.domain.models.project import Project
 from packages.orchestrator.hive import HiveOrchestrator
 
-try:
-    from packages.property_alerts import property_app
-except ModuleNotFoundError:
-    property_app = None
-
 app = typer.Typer(help="OrchAI: CLI-First AI Orchestrator")
-if property_app is not None:
-    app.add_typer(property_app, name="property")
 
 # Maps completed role → label for the NEXT waiting phase
 _NEXT_PHASE_LABEL = {

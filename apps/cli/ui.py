@@ -5,7 +5,7 @@ from rich.text import Text
 from rich.live import Live
 from rich.spinner import Spinner
 
-console = Console()
+console = Console(force_terminal=True, legacy_windows=False)
 
 def display_banner():
     banner_text = Text("OrchAI", style="bold magenta")

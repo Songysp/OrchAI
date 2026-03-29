@@ -22,7 +22,7 @@ def sample_project():
         chat_platform="cli"
     )
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_hive_orchestrator_success_loop(mock_adapter, sample_project):
     # Setup mock responses for Planner, Worker, Refiner
     planner_res = AgentTurnResult(role="planner", provider="mock", output="Plan: Step 1, Step 2", status="completed")
@@ -40,7 +40,7 @@ async def test_hive_orchestrator_success_loop(mock_adapter, sample_project):
     assert history[2].role == "refiner"
     assert "DONE" in history[2].output
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_hive_orchestrator_max_turns_escalation(mock_adapter, sample_project, monkeypatch):
     # Setup mock responses that never finish
     planner_res = AgentTurnResult(role="planner", provider="mock", output="Plan: Endless loop", status="completed")
